@@ -1,0 +1,47 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider = "prisma-client-py"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model student {
+  id          String  @id @default(uuid())
+  name        String
+  rollNumber  String  @unique
+  collegeCode String
+  fatherName  String @default("")
+  marks       mark[]
+}
+
+model subject {
+  id          String  @id @default(uuid())
+  subjectCode String  @unique
+  subjectName String
+  marks       mark[]
+}
+
+model mark {
+  id          String  @id @default(uuid())
+  studentId   String
+  student     student @relation(fields: [studentId], references: [id])
+  subjectId   String
+  subject     subject @relation(fields: [subjectId], references: [id])
+  semesterCode String
+  examCode    String
+  internalMarks String
+  externalMarks String
+  totalMarks  String
+  grades       String?
+  credits      Float?
+  rcrv        Boolean
+  @@unique([studentId, semesterCode, examCode, subjectId, rcrv])
+}
+
