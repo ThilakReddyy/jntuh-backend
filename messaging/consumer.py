@@ -42,7 +42,7 @@ async def consume_messages(app: FastAPI):
                     try:
                         async with message.process():
                             if message.body.decode() == NOTIFICATIONS_REDIS_KEY:
-                                await get_notifications()
+                                get_notifications()
                             else:
                                 await process_message(message.body.decode())
                     except Exception as e:

@@ -1,25 +1,25 @@
+from datetime import datetime
 from config.connection import prismaConnection
 from utils.logger import database_logger
 
 
 async def save_details(details):
     try:
-        existing_student = await prismaConnection.prisma.student.find_unique(
-            where={"rollNumber": details["rollNo"]}
-        )
-        if not existing_student:
-            await prismaConnection.prisma.student.create(
-                data={
+        await prismaConnection.prisma.student.upsert(
+            where={"rollNumber": details["rollNo"]},
+            data={
+                "create": {
                     "rollNumber": details["rollNo"],
                     "name": details["name"],
                     "collegeCode": details["collegeCode"],
                     "fatherName": details["fatherName"],
-                }
-            )
+                },
+                "update": {
+                    "lastUpdated": datetime.now(),
+                },
+            },
+        )
 
-            database_logger.info(
-                f"Inserted student {details['rollNo']} into the database."
-            )
     except Exception as e:
         database_logger.error(f"Database error while inserting student data: {e}")
 
