@@ -1,9 +1,10 @@
 import asyncio
 from fastapi.applications import FastAPI
 
-from config.settings import QUEUE_NAME
+from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME
 from database.operations import save_to_database
-from service.scraperService import ResultScraper
+from scrapers.resultNotificationScraper import get_notifications
+from scrapers.resultScraper import ResultScraper
 from utils.logger import rabbitmq_logger, logger
 
 
@@ -40,8 +41,10 @@ async def consume_messages(app: FastAPI):
                 async for message in queue_iter:
                     try:
                         async with message.process():
-                            # Pass the message body to the custom processing function
-                            await process_message(message.body.decode())
+                            if message.body.decode() == NOTIFICATIONS_REDIS_KEY:
+                                await get_notifications()
+                            else:
+                                await process_message(message.body.decode())
                     except Exception as e:
                         rabbitmq_logger.error(f"Error processing message: {e}")
                         # Optionally, you can reject or requeue the message here

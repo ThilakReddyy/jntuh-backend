@@ -32,6 +32,8 @@ async def fetch_backlogs(app: FastAPI, roll_number: str):
                 roll_backlogs_key, json.dumps(result), ex=EXPIRY_TIME
             )
 
+        await publish_message(app, roll_number)
+
         return result
 
     return await publish_message(app, roll_number)

@@ -19,5 +19,6 @@ DB_URL = os.getenv("DATABASE_URL")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
 REDIS_URL = os.getenv("REDIS_URL")
 EXPIRY_TIME = 3600
+NOTIFICATIONS_REDIS_KEY = "notificationsi"
 
 logger.info("All required environment variables are set. Starting application...")

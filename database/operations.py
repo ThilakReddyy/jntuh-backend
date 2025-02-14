@@ -1,7 +1,5 @@
-from fastapi import FastAPI
 from config.connection import prismaConnection
-from messaging.publisher import publish_message
-from utils.logger import logger, database_logger
+from utils.logger import database_logger
 
 
 async def save_details(details):

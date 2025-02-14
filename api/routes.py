@@ -2,6 +2,7 @@ from fastapi import APIRouter, FastAPI, Depends
 
 from service.getAllResultService import fetch_all_results
 from service.getResultsService import fetch_results
+from service.notificationService import notification
 from utils.helpers import validateRollNo
 
 router = APIRouter()
@@ -42,5 +43,14 @@ def create_routes(app: FastAPI):
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_results(app, roll_no)
+
+    @router.get(
+        "/api/notifications",
+        summary="Fetch result notifications",
+        description="Retrieves all the notifications.",
+        tags=["Notifications"],
+    )
+    async def get_notifications():
+        return await notification(app)
 
     return router

@@ -1,6 +1,9 @@
+from datetime import datetime
 import json
+from typing import List
 
 from config.redisConnection import redisConnection
+from prisma.models import student, mark
 from config.settings import EXPIRY_TIME
 from database.models import studentAllResultsModel, studentDetailsModel
 from database.operations import get_details
@@ -21,16 +24,16 @@ async def fetch_all_results(app: FastAPI, roll_number: str):
     response = await get_details(roll_number)
 
     if response:
-        student, marks = response
+        studentDetail, marks = response
         result = {
-            "details": studentDetailsModel(student),
+            "details": studentDetailsModel(studentDetail),
             "results": studentAllResultsModel(marks),
         }
-
         if redisConnection.client:
             redisConnection.client.set(roll_all_key, json.dumps(result), ex=EXPIRY_TIME)
+
+        await publish_message(app, roll_number)
 
         return result
 
     return await publish_message(app, roll_number)
-
