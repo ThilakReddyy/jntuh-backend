@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 
+from fastapi.openapi.utils import get_openapi
+
 
 from api.routes import create_routes
 from config.redisConnection import redisConnection
@@ -32,7 +34,27 @@ async def lifespan(app: FastAPI):
         await app.state.rabbitmq_connection.close()
 
 
+def custom_openapi():
+    """Generate and cache a custom OpenAPI schema for the FastAPI application."""
+    if not app.openapi_schema:
+        app.openapi_schema = get_openapi(
+            title="JNTUH RESULTS API",
+            version="0.1.0",
+            summary="API for retrieving student results and academic information",
+            description="The JNTUH Results API provides access to student records, including academic results, "
+            "backlog details, and overall performance summaries. This API is designed to streamline "
+            "access to university result data in a structured format.",
+            routes=app.routes,
+        )
+        app.openapi_schema["info"]["x-logo"] = {
+            "url": "https://jntuhresults.vercel.app/_next/image?url=%2Fjntuhresults_md.png&w=256&q=75"
+        }
+    return app.openapi_schema
+
+
 app = FastAPI(lifespan=lifespan)
+
+app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,

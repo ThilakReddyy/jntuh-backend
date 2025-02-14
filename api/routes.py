@@ -10,19 +10,34 @@ router = APIRouter()
 def create_routes(app: FastAPI):
     """Creates routes and injects the FastAPI app instance."""
 
-    @router.get("/api/getAllResult")
+    @router.get(
+        "/api/getAllResult",
+        summary="Fetch all student results",
+        description="Retrieves the full academic record for all students.",
+        tags=["Results"],
+    )
     async def get_all_result(
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_all_results(app, roll_no)
 
-    @router.get("/api/getAcademicResult")
+    @router.get(
+        "/api/getAcademicResult",
+        summary="Fetch academic results",
+        description="Retrieves a specific student's academic results based on query parameters.",
+        tags=["Results"],
+    )
     async def get_result(
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_results(app, roll_no)
 
-    @router.get("/api/getBacklogs")
+    @router.get(
+        "/api/getBacklogs",
+        summary="Fetch student backlogs",
+        description="Retrieves a list of backlogs (pending subjects) for a student.",
+        tags=["Results"],
+    )
     async def get_backlogs(
         roll_no: str = Depends(validateRollNo),
     ):
