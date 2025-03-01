@@ -15,8 +15,8 @@ async def process_message(message_body: str):
     Replace this logic with your custom processing code.
     """
     rabbitmq_logger.info(f"Processing message: {message_body}")
-    # scraper = ResultScraper(message_body, url="http://202.63.105.184/resultAction")
-    scraper = ResultScraper(message_body)
+    scraper = ResultScraper(message_body, url="http://202.63.105.184/resultAction")
+    # scraper = ResultScraper(message_body)
     results = await scraper.run()
     if results is None:
         logger.warning(f"Failed to get results: {message_body}")
