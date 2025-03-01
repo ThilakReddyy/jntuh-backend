@@ -23,7 +23,7 @@ def check_url():
         try:
             response = requests.get(url, timeout=2)
             if response.status_code in {200, 201}:
-                scraping_logger.info(f"The URL {url} is working")
+                scraping_logger.info(f"The URL {optimized_url} is working")
 
                 # Cache the result in Redis
                 if redisConnection.client:
