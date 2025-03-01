@@ -56,7 +56,7 @@ services:
       QUEUE_NAME: default_queue
 
     ports:
-      - "80:8000"
+      - "8000:8000"
     volumes:
       - .:/app
 
