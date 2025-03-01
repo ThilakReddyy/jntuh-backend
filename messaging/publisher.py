@@ -1,8 +1,8 @@
 import aio_pika
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
-from config.settings import QUEUE_NAME, REDIS_URL_KEY
-from scrapers.serverChecker import check_url
+from config.settings import QUEUE_NAME
+from scrapers.serverChecker import check_url, check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
 
@@ -11,8 +11,9 @@ async def publish_message(app: FastAPI, rollNo: str):
 
     try:
         if redisConnection.client:
-            url = redisConnection.client.get(REDIS_URL_KEY)
-            if url == "":
+            url = check_valid_url_in_redis()
+
+            if url == ".":
                 return {
                     "status": "failure",
                     "message": "JNTUH SERVERS ARE DOWN!!",
