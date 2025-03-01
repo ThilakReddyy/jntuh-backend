@@ -5,6 +5,7 @@ from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME
 from database.operations import save_to_database
 from scrapers.resultNotificationScraper import get_notifications
 from scrapers.resultScraper import ResultScraper
+from scrapers.serverChecker import check_url
 from utils.logger import rabbitmq_logger, logger
 
 
@@ -15,8 +16,12 @@ async def process_message(message_body: str):
     Replace this logic with your custom processing code.
     """
     rabbitmq_logger.info(f"Processing message: {message_body}")
-    # scraper = ResultScraper(message_body, url="http://202.63.105.184/resultAction")
-    scraper = ResultScraper(message_body)
+    url = check_url()
+    if not url:
+        return
+
+    scraper = ResultScraper(message_body, url)
+    # scraper = ResultScraper(message_body)
     results = await scraper.run()
     if results is None:
         logger.warning(f"Failed to get results: {message_body}")

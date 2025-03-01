@@ -2,7 +2,7 @@
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup, Tag
-import logging
+from utils.logger import scraping_logger
 
 
 # Define a class for scraping JNTUH results
@@ -27,8 +27,7 @@ class ResultScraper:
             "-": 0,
         }
         self.payloads = self._load_payloads()
-        self.logger = logging.getLogger(__name__)
-        logging.basicConfig(level=logging.INFO)
+        self.logger = scraping_logger
         # Exam codes for different regulations and semesters
 
     def _load_exam_codes(self):
@@ -589,7 +588,7 @@ class ResultScraper:
         try:
             await self.scrape_all_results()
             retries = 0
-            while self.failed_exam_codes and retries < 6:
+            while self.failed_exam_codes and retries < 15:
                 retries += 1
                 failed_codes = list(set(self.failed_exam_codes))
                 self.failed_exam_codes = []
@@ -597,6 +596,7 @@ class ResultScraper:
 
             if bool(self.results["details"]):
                 return self.results
+
             return None
         except Exception as e:
             self.logger.error(f"Fatal error: {e}")

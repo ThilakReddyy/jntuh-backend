@@ -1,6 +1,7 @@
 from fastapi import APIRouter, FastAPI, Depends
 
 from service.getAllResultService import fetch_all_results
+from service.getBacklogsService import fetch_backlogs
 from service.getResultsService import fetch_results
 from service.notificationService import notification
 from utils.helpers import validateRollNo
@@ -42,7 +43,7 @@ def create_routes(app: FastAPI):
     async def get_backlogs(
         roll_no: str = Depends(validateRollNo),
     ):
-        return await fetch_results(app, roll_no)
+        return await fetch_backlogs(app, roll_no)
 
     @router.get(
         "/api/notifications",
