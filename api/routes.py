@@ -1,4 +1,5 @@
 from fastapi import APIRouter, FastAPI, Depends
+from fastapi.responses import RedirectResponse
 
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
@@ -11,6 +12,10 @@ router = APIRouter()
 
 def create_routes(app: FastAPI):
     """Creates routes and injects the FastAPI app instance."""
+
+    @router.get("/", include_in_schema=False)
+    async def index():
+        return RedirectResponse(url="/docs")
 
     @router.get(
         "/api/getAllResult",
