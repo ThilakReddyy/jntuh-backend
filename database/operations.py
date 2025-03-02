@@ -101,7 +101,9 @@ async def get_details(roll_number: str):
     )
     if student:
         marks = await prismaConnection.prisma.mark.find_many(
-            where={"studentId": student.id}, include={"subject": True}
+            where={"studentId": student.id},
+            include={"subject": True},
+            order=[{"semesterCode": "asc"}, {"examCode": "asc"}],
         )
         return [student, marks]
     return None
