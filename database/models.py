@@ -1,6 +1,7 @@
 from typing import List, TypedDict
 from prisma.models import student, mark
 
+from config.settings import SEMESTERS
 from utils.helpers import getGradeValue, isGreat
 
 
@@ -104,8 +105,14 @@ def processResults(results: List[mark]):
         total_credits += semester_credits
         total_backlogs += backlogs
 
+    final_result_keys = final_result.keys()
+    semesters = {}
+    for semester in SEMESTERS:
+        if semester in final_result_keys:
+            semesters[semester] = final_result[semester]
+
     return {
-        "semesters": list(final_result.values()),
+        "semesters": list(semesters.values()),
         "CGPA": calculateGPA(total_grades, total_credits),
         "backlogs": total_backlogs,
         "credits": total_credits,
