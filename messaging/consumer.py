@@ -1,6 +1,7 @@
 import asyncio
 from fastapi.applications import FastAPI
 
+from config.redisConnection import redisConnection
 from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME
 from database.operations import save_to_database
 from scrapers.resultNotificationScraper import get_notifications
@@ -16,12 +17,17 @@ async def process_message(message_body: str):
     Replace this logic with your custom processing code.
     """
     rabbitmq_logger.info(f"Processing message: {message_body}")
+
+    # Remove the roll number from Redis after successful processing
+    if redisConnection.client:
+        redisConnection.client.srem("rabbitmq_roll_numbers", message_body)
+        rabbitmq_logger.info(f"Removed roll number {message_body} from Redis.")
+
     url = check_url()
     if not url:
         return
 
     scraper = ResultScraper(message_body, url)
-    # scraper = ResultScraper(message_body)
     results = await scraper.run()
     if results is None:
         logger.warning(f"Failed to get results: {message_body}")

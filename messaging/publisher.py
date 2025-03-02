@@ -18,6 +18,16 @@ async def publish_message(app: FastAPI, rollNo: str):
                     "status": "failure",
                     "message": "JNTUH SERVERS ARE DOWN!!",
                 }
+            # Check if rollNo is already in Redis
+            if redisConnection.client.sismember("rabbitmq_roll_numbers", rollNo):
+                rabbitmq_logger.info(
+                    f"Roll number {rollNo} already exists in queue. Skipping..."
+                )
+                return {
+                    "status": "failure",
+                    "message": "This roll number is already in the queue.",
+                }
+
         async with app.state.rabbitmq_connection.channel() as channel:
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
             if queue.declaration_result.message_count > 600:
@@ -31,6 +41,9 @@ async def publish_message(app: FastAPI, rollNo: str):
                 aio_pika.Message(body=rollNo.encode()),
                 routing_key=QUEUE_NAME,
             )
+
+            if redisConnection.client:
+                redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
         return {
             "status": "success",
             "message": "Your roll number has been queued.",
