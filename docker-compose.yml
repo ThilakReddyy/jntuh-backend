@@ -33,10 +33,10 @@ services:
       - "5672:5672"
       - "15672:15672"
     healthcheck:
-      test: ["CMD-SHELL", "rabbitmqctl status || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 20s
+      retries: 10
 
   app:
     build: .
