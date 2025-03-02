@@ -2,7 +2,7 @@ import aio_pika
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
 from config.settings import QUEUE_NAME
-from scrapers.serverChecker import check_url, check_valid_url_in_redis
+from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
 
@@ -18,9 +18,6 @@ async def publish_message(app: FastAPI, rollNo: str):
                     "status": "failure",
                     "message": "JNTUH SERVERS ARE DOWN!!",
                 }
-            elif not url:
-                check_url()
-
         async with app.state.rabbitmq_connection.channel() as channel:
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
             if queue.declaration_result.message_count > 600:
