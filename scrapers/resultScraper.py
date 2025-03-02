@@ -1,5 +1,6 @@
 # Import necessary libraries
 import asyncio
+from itertools import chain
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 from utils.logger import scraping_logger
@@ -547,12 +548,12 @@ class ResultScraper:
             exam_codes.pop("1-1", None)
             exam_codes.pop("1-2", None)
 
-        codes_to_fetch = failed_exam_codes if failed_exam_codes else exam_codes
+        flattened_list = list(chain(*exam_codes.values()))
+        codes_to_fetch = failed_exam_codes if failed_exam_codes else flattened_list
         payloads = self.payloads[degree]
-
-        async with aiohttp.ClientSession() as session:
-            for exam_code in codes_to_fetch:  # Use codes_to_fetch instead of exam_codes
-                for code in codes_to_fetch[exam_code]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                for code in codes_to_fetch:
                     tasks[code] = []
                     for payload in payloads:
                         try:
@@ -565,24 +566,30 @@ class ResultScraper:
                                 f"Error calling the api for {self.roll_number}:{e}"
                             )
 
-            for exam_code, exam_tasks in tasks.items():
-                try:
-                    responses = await asyncio.gather(*exam_tasks)
-                    for response in responses:
-                        if (
-                            "Enter HallTicket Number" not in response
-                            and "Internal Server Error" not in response
-                        ):
-                            self.scrape_results(exam_code, response)
-                except Exception as e:
-                    self.logger.error(f"Error fetching resultgs for {exam_code}: {e}")
-            for exam_result in self.exam_code_results:
-                exam_code = exam_result["examCode"]
-                for semester, codes in exam_codes.items():
-                    if exam_code in codes:
-                        exam_result["semesterCode"] = semester
+                for exam_code, exam_tasks in tasks.items():
+                    try:
+                        responses = await asyncio.gather(*exam_tasks)
+                        for response in responses:
+                            if (
+                                "Enter HallTicket Number" not in response
+                                # and "Internal Server Error" not in response
+                            ):
+                                self.scrape_results(exam_code, response)
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error fetching resultgs for {exam_code}: {e}"
+                        )
+                for exam_result in self.exam_code_results:
+                    exam_code = exam_result["examCode"]
+                    for semester, codes in exam_codes.items():
+                        if exam_code in codes:
+                            exam_result["semesterCode"] = semester
 
-        self.results["results"] = self.exam_code_results
+            self.results["results"] = self.exam_code_results
+        except Exception as e:
+            scraping_logger.warning(
+                f"Something unexpecting has happend while scraping results: {e}"
+            )
 
     async def run(self):
         try:
@@ -593,6 +600,14 @@ class ResultScraper:
                 failed_codes = list(set(self.failed_exam_codes))
                 self.failed_exam_codes = []
                 await self.scrape_all_results(failed_codes)
+            if self.failed_exam_codes:
+                scraping_logger.info(
+                    f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.exam_codes)}"
+                )
+            if retries:
+                scraping_logger.info(
+                    f"Successfully extracted results fo {self.roll_number} in {retries+1} attempts"
+                )
 
             if bool(self.results["details"]):
                 return self.results
