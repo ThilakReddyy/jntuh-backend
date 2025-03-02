@@ -41,7 +41,7 @@ jobs:
             docker-compose up -d --build
 
             # Cleanup unused Docker resources
-            # docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
+            docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
 
             exit
           EOF
