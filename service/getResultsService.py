@@ -26,6 +26,7 @@ async def fetch_results(app: FastAPI, roll_number: str):
             "details": studentDetailsModel(student),
             "results": studentResultsModel(marks),
         }
+
         if redisConnection.client:
             redisConnection.client.set(
                 roll_results_key, json.dumps(result), ex=EXPIRY_TIME
