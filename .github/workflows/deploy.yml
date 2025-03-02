@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main # Change to your main branch
+      - main
 
 jobs:
   deploy:
@@ -15,18 +15,37 @@ jobs:
 
       - name: Setup SSH Key
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" | tee private_key.pem > /dev/null
           chmod 600 private_key.pem
 
       - name: Deploy to EC2
         run: |
+          for i in {1..5}; do  # Retry SSH connection up to 5 times
+            ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "exit" && break
+            echo "SSH connection failed, retrying in 5 seconds..."
+            sleep 5
+          done
+
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd jntuh-backend  # Change to your project directory
-            git pull origin main
-            sudo docker-compose down
-            sudo docker-compose up -d --build
+            set -e  # Exit immediately if a command fails
+
+            # Navigate to project directory (create if missing)
+            mkdir -p ~/jntuh-backend && cd ~/jntuh-backend
+
+            # Ensure clean repo state
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Start or update Docker services
+            docker-compose pull  # Fetch updated images without rebuilding everything
+            docker-compose down
+            docker-compose up -d --build --remove-orphans
+
+            # Cleanup unused Docker resources
+            docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
+
             exit
           EOF
 
-      - name: Cleanup
+      - name: Cleanup SSH Key
         run: rm -f private_key.pem
