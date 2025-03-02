@@ -58,6 +58,7 @@ def studentAllResultsModel(
             },
         )
         exam_data["subjects"].append(studentResultModel(result))
+
     return [
         {"semester": sem, "exams": list(data["exams"].values())}
         for sem, data in final_result.items()
