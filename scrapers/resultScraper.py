@@ -515,9 +515,9 @@ class ResultScraper:
                 {"examCode": semester_code, "subjects": subjects, "rcrv": rcrv}
             )
 
-        except Exception as e:
+        except Exception:
             self.failed_exam_codes.append(semester_code)
-            self.logger.error(f"Error processing results for {self.roll_number}: {e}")
+            # self.logger.error(f"Error processing results for {self.roll_number}: {e}")
 
     def _determine_degree(self):
         degree_map = {
