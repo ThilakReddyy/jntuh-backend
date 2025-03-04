@@ -61,7 +61,9 @@ async def consume_messages(app: FastAPI):
                             else:
                                 await process_message(message.body.decode())
                     except Exception as e:
-                        rabbitmq_logger.error(f"Error processing message: {e}")
+                        rabbitmq_logger.error(
+                            f"Error processing message: {e},{message.body}"
+                        )
                         # Optionally, you can reject or requeue the message here
                         # await message.reject(requeue=True)
 
