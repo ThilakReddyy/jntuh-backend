@@ -26,15 +26,21 @@ async def process_message(message_body: str):
 
         url = check_url()
         if not url:
+            rabbitmq_logger.warning("No url found, skipping processing...")
             return
 
         scraper = ResultScraper(message_body, url)
+        rabbitmq_logger.info(f"Started scraper for {message_body}")
         results = await scraper.run()
         if results is None:
             logger.warning(f"Failed to get results: {message_body}")
             return
         logger.info(f"Results was successfully extracted: {message_body}")
+
+        # Database save
+        rabbitmq_logger.info(f"Saving results to database for {message_body}")
         await save_to_database(results)
+
     except Exception as e:
         scraping_logger.error(f"Error while scarping results: {e}")
 
