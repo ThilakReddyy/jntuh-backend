@@ -62,12 +62,11 @@ async def consume_messages(app: FastAPI):
                 async for message in queue_iter:
                     try:
                         async with message.process():
-                            if message.body.decode() == NOTIFICATIONS_REDIS_KEY:
+                            body = message.body.decode()
+                            if body == NOTIFICATIONS_REDIS_KEY:
                                 get_notifications()
                             else:
-                                await process_message(message.body.decode())
-
-                            await message.ack()
+                                await process_message(body)
 
                     except Exception as e:
                         rabbitmq_logger.error(
