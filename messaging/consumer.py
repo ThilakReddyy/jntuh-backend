@@ -60,6 +60,9 @@ async def consume_messages(app: FastAPI):
                                 get_notifications()
                             else:
                                 await process_message(message.body.decode())
+
+                            await message.ack()
+
                     except Exception as e:
                         rabbitmq_logger.error(
                             f"Error processing message: {e},{message.body}"
