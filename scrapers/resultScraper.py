@@ -617,6 +617,7 @@ class ResultScraper:
                 scraping_logger.info(
                     f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.exam_codes)}"
                 )
+                return None
             if retries:
                 scraping_logger.info(
                     f"Successfully extracted results fo {self.roll_number} in {retries+1} attempts"
