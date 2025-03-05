@@ -30,7 +30,12 @@ async def publish_message(app: FastAPI, rollNo: str):
 
         async with app.state.rabbitmq_connection.channel() as channel:
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
-            if queue.declaration_result.message_count > 600:
+
+            message_count = queue.declaration_result.message_count
+            unacked_count = (
+                queue.declaration_result.consumer_count
+            )  # Alternative way to track unacknowledged messages
+            if message_count > 600 or unacked_count > 600:
                 rabbitmq_logger.warning("Server had execced the threshold level")
                 return {
                     "status": "failure",

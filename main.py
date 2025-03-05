@@ -24,12 +24,12 @@ async def lifespan(app: FastAPI):
         await prismaConnection.connect()
         redisConnection.connect()
 
-        consumer_task = asyncio.create_task(consume_messages(app))
+        # consumer_task = asyncio.create_task(consume_messages(app))
 
         yield
 
         logger.info("Shutting down RabbitMQ Consumer...")
-        consumer_task.cancel()
+        # consumer_task.cancel()
     finally:
         await app.state.rabbitmq_connection.close()
 

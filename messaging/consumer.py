@@ -1,8 +1,9 @@
 import asyncio
+import aio_pika
 from fastapi.applications import FastAPI
 
 from config.redisConnection import redisConnection
-from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME
+from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_URL
 from database.operations import save_to_database
 from scrapers.resultNotificationScraper import get_notifications
 from scrapers.resultScraper import ResultScraper
@@ -45,10 +46,14 @@ async def process_message(message_body: str):
         scraping_logger.error(f"Error while scarping results: {e}")
 
 
-async def consume_messages(app: FastAPI):
+async def consume_messages():
     """Consume messages from RabbitMQ and pass them to the processing function."""
     try:
-        connection = app.state.rabbitmq_connection
+        # connection = app.state.rabbitmq_connection
+
+        connection = await aio_pika.connect_robust(RABBITMQ_URL)
+
+        redisConnection.connect()
 
         async with connection:
             channel = await connection.channel()
