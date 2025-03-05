@@ -1,4 +1,4 @@
-# JNTUH Results API 
+# JNTUH Results BACKEND 
 
 [![License](https://img.shields.io/github/license/thilakreddyy/jntuhresults-web.svg)](https://github.com/ThilakReddyy/jntuh-backend/blob/main/LICENSE)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/thilakreddyy/jntuh-backend.svg)
@@ -23,7 +23,21 @@ This FastAPI-based service provides access to **student results, academic record
 - **Database**: PostgreSQL  
 - **Caching**: Redis  
 - **Messaging Queue**: RabbitMQ  
-- **Containerization**: Docker  
+- **Containerization**: Docker
+
+## 🏗 System Architecture
+
+   The following diagrams illustrate the components and overall architecture of the FastAPI-based results service.
+
+### **Component Diagram**  
+This diagram shows how different services interact in the system.  
+
+![Component Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/jntuhbackendcomponents.png)  
+
+### **Architecture Diagram**  
+This diagram outlines the flow of requests and data within the system.  
+
+![Architecture Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/jntuh-backend-architecture.png)  
 
 
 ## Installation & Setup  
