@@ -32,12 +32,12 @@ This FastAPI-based service provides access to **student results, academic record
 ### **Component Diagram**  
 This diagram shows how different services interact in the system.  
 
-![Component Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/jntuhbackendcomponents.png)  
+![Component Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/assests/component-diagram.png)  
 
 ### **Architecture Diagram**  
 This diagram outlines the flow of requests and data within the system.  
 
-![Architecture Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/jntuh-backend-architecture.png)  
+![Architecture Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/assests/architecture-diagram-horizontal.png)  
 
 
 ## Installation & Setup  
