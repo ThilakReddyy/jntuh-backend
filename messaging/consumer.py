@@ -1,7 +1,7 @@
 import asyncio
 import aio_pika
-from fastapi.applications import FastAPI
 
+from config.connection import prismaConnection
 from config.redisConnection import redisConnection
 from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_URL
 from database.operations import save_to_database
@@ -45,14 +45,20 @@ async def process_message(message_body: str):
     except Exception as e:
         scraping_logger.error(f"Error while scarping results: {e}")
 
+    """Consume messages from RabbitMQ and pass them to the processing function."""
+
 
 async def consume_messages():
-    """Consume messages from RabbitMQ and pass them to the processing function."""
     try:
         # connection = app.state.rabbitmq_connection
+        logger.info("Starting rabbitmq connection for consumer")
 
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
 
+        logger.info("Starting database connection for consumer")
+        await prismaConnection.connect()
+
+        logger.info("Starting redis connection for consumer")
         redisConnection.connect()
 
         async with connection:
