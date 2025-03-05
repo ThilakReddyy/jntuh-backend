@@ -24,12 +24,12 @@ async def lifespan(app: FastAPI):
         await prismaConnection.connect()
         redisConnection.connect()
 
-        consumer_task = asyncio.create_task(consume_messages(app))
+        # consumer_task = asyncio.create_task(consume_messages(app))
 
         yield
 
         logger.info("Shutting down RabbitMQ Consumer...")
-        consumer_task.cancel()
+        # consumer_task.cancel()
     finally:
         await app.state.rabbitmq_connection.close()
 
@@ -63,6 +63,17 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
+
+
+@app.middleware("http")
+async def log_request(request, call_next):
+    client_ip = request.client.host  # Capture the client's IP
+    logger.info(f"Request from {client_ip}: {request.method} {request.url.path}")
+
+    # Process the request and continue
+    response = await call_next(request)
+    return response
+
 
 routes = create_routes(app)
 app.include_router(routes)
