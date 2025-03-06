@@ -84,7 +84,7 @@ async def consume_messages():
                             f"Error processing message: {e},{message.body}"
                         )
                         # Optionally, you can reject or requeue the message here
-                        # await message.reject(requeue=True)
+                        await message.reject(requeue=False)
 
     except asyncio.CancelledError:
         rabbitmq_logger.info("Message consumption was cancelled.")
