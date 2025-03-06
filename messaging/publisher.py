@@ -32,20 +32,12 @@ async def publish_message(app: FastAPI, rollNo: str):
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
 
             message_count = queue.declaration_result.message_count
-            unacked_count = (
-                queue.declaration_result.consumer_count
-            )  # Alternative way to track unacknowledged messages
-
-            if message_count > 600 or unacked_count > 600:
+            if message_count > 600:
                 rabbitmq_logger.warning("Server had execced the threshold level")
                 return {
                     "status": "failure",
                     "message": "Server cannot handle the requests currently, please try again later",
                 }
-            else:
-                rabbitmq_logger.info(
-                    f"message coiunt is {message_count} and unacked_count is {unacked_count}"
-                )
 
             await channel.default_exchange.publish(
                 aio_pika.Message(body=rollNo.encode()),
