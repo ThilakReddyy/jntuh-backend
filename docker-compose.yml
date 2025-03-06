@@ -38,6 +38,14 @@ services:
       timeout: 10s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090" # Expose Prometheus on port 9090
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount Prometheus config file
+
   app:
     build: .
     container_name: fastapiapp
@@ -59,5 +67,6 @@ services:
       - .:/app
 
     entrypoint: ["/app/entrypoint.sh"]
+
 volumes:
   postgres_data:
