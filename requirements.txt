@@ -25,6 +25,8 @@ multidict==6.1.0
 nodeenv==1.9.1
 pamqp==3.3.0
 prisma==0.15.0
+prometheus-fastapi-instrumentator==7.0.2
+prometheus_client==0.21.1
 propcache==0.2.1
 pydantic==2.10.6
 pydantic_core==2.27.2

@@ -13,6 +13,7 @@ from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
 from messaging.consumer import consume_messages
 from utils.logger import logger
+from prometheus_fastapi_instrumentator import Instrumentator
 
 
 @asynccontextmanager
@@ -63,6 +64,13 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Initialize Prometheus instrumentator
+instrumentator = Instrumentator()
+
+# Automatically instrument the FastAPI app to expose Prometheus metrics
+# Exposing metrics at /metrics
+instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 
 @app.middleware("http")
