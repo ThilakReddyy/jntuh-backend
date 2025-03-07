@@ -38,8 +38,8 @@ jobs:
             # Start or update Docker services
             docker-compose pull  # Fetch updated images without rebuilding everything
             docker-compose down
-            docker-compose up --no-deps -d --build app
-            # docker-compose up -d --build
+            # docker-compose up --no-deps -d --build app
+            docker-compose up -d --build
 
             # Cleanup unused Docker resources
             docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
