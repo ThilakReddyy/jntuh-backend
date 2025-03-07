@@ -47,6 +47,7 @@ services:
       - "9090:9090" # Expose Prometheus on port 9090
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount Prometheus config file
+      - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
 
   app:
     build: .
@@ -72,4 +73,4 @@ services:
 
 volumes:
   postgres_data:
-  grafana_data:
+  prometheus_data:
