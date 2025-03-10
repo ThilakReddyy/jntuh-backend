@@ -143,7 +143,7 @@ def studentCredits(results: List[mark], credits):
     ]
 
     ret = {
-        "academicYears": {},
+        "academicYears": [],
         "totalCredits": 0.0,
         "totalObtainedCredits": total_obtained_credits,
         "totalRequiredCredits": 0.0,
@@ -151,20 +151,21 @@ def studentCredits(results: List[mark], credits):
 
     previous_credits = {}
     for i, (year, year_data) in enumerate(credits.items()):
-        ret["academicYears"][year] = {
-            "semesterWiseCredits": semester_credits_chunked[i]
-            if i < len(semester_credits_chunked)
-            else {},
-            "creditsObtained": sum(semester_credits_chunked[i].values())
-            if i < len(semester_credits_chunked)
-            else 0.0,
-            "totalsemCredits": float(year_data["Total"])
-            - float(previous_credits.get("Total", 0.0)),
-        }
+        ret["academicYears"].append(
+            {
+                "semesterWiseCredits": semester_credits_chunked[i]
+                if i < len(semester_credits_chunked)
+                else {},
+                "creditsObtained": sum(semester_credits_chunked[i].values())
+                if i < len(semester_credits_chunked)
+                else 0.0,
+                "totalCredits": float(year_data["Total"])
+                - float(previous_credits.get("Total", 0.0)),
+            }
+        )
         previous_credits = year_data
 
     ret["totalCredits"] = float(previous_credits.get("Total", 0.0))
-    print(credits)
     ret["totalRequiredCredits"] = float(previous_credits.get("Required", 0.0))
 
     return ret

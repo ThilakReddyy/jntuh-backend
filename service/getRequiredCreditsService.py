@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
 import json
+import time
 
 from config.settings import EXPIRY_TIME
 from database.models import studentBacklogs, studentCredits, studentDetailsModel
@@ -10,10 +11,10 @@ from utils.helpers import get_credit_regulation_details
 
 
 async def fetch_required_credits(app: FastAPI, roll_number: str):
-    roll_backlogs_key = f"{roll_number}RequiredCredits"
+    roll_credits_checker_key = f"{roll_number}RequiredCredits"
 
     if redisConnection.client:
-        cached_data = redisConnection.client.get(roll_backlogs_key)
+        cached_data = redisConnection.client.get(roll_credits_checker_key)
         if cached_data:
             return json.loads(cached_data)  # pyright: ignore
 
@@ -25,6 +26,7 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
         }
 
     response = await get_details(roll_number)
+    time.sleep(5)
     if response:
         student, marks = response
         result = {
