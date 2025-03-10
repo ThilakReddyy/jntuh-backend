@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
+from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultsService import fetch_results
 from service.notificationService import notification
 from utils.helpers import validateRollNo
@@ -49,6 +50,17 @@ def create_routes(app: FastAPI):
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_backlogs(app, roll_no)
+
+    @router.get(
+        "/api/getCreditsChecker",
+        summary="Get Required Credits",
+        description="Retrives required credits for a student",
+        tags=["Results"],
+    )
+    async def get_credits_checker(
+        roll_no: str = Depends(validateRollNo),
+    ):
+        return await fetch_required_credits(app, roll_no)
 
     @router.get(
         "/api/notifications",

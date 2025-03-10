@@ -125,6 +125,51 @@ def studentResultsModel(results: List[mark]):
     return processResults(results)
 
 
+def studentCredits(results: List[mark], credits):
+    processed_results = processResults(results)
+    semester_results = processed_results["semesters"]
+
+    # Extract semester-wise obtained credits
+    semester_credits = {
+        sem["semester"]: sem["semesterCredits"] for sem in semester_results
+    }
+    total_obtained_credits = sum(semester_credits.values())
+
+    # Split semester credits into chunks of 2
+    chunk_size = 2
+    semester_credits_chunked = [
+        dict(list(semester_credits.items())[i : i + chunk_size])
+        for i in range(0, len(semester_credits), chunk_size)
+    ]
+
+    ret = {
+        "academicYears": {},
+        "totalCredits": 0.0,
+        "totalObtainedCredits": total_obtained_credits,
+        "totalRequiredCredits": 0.0,
+    }
+
+    previous_credits = {}
+    for i, (year, year_data) in enumerate(credits.items()):
+        ret["academicYears"][year] = {
+            "semesterWiseCredits": semester_credits_chunked[i]
+            if i < len(semester_credits_chunked)
+            else {},
+            "creditsObtained": sum(semester_credits_chunked[i].values())
+            if i < len(semester_credits_chunked)
+            else 0.0,
+            "totalsemCredits": float(year_data["Total"])
+            - float(previous_credits.get("Total", 0.0)),
+        }
+        previous_credits = year_data
+
+    ret["totalCredits"] = float(previous_credits.get("Total", 0.0))
+    print(credits)
+    ret["totalRequiredCredits"] = float(previous_credits.get("Required", 0.0))
+
+    return ret
+
+
 def studentBacklogs(results: List[mark]):
     processed_results = processResults(results)["semesters"]
     backlogs_data = []
