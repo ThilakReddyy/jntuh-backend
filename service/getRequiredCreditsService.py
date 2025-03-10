@@ -26,7 +26,6 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
         }
 
     response = await get_details(roll_number)
-    time.sleep(5)
     if response:
         student, marks = response
         result = {
