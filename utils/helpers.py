@@ -82,9 +82,11 @@ def get_credit_regulation_details(roll_number: str):
         return None
 
     # Determine regulation key
-    if (int(regulation_year) >= 18 and entry_type == "Regular") or (
-        regulation_year == "22" and entry_type == "Lateral"
-    ):
+    if (
+        int(regulation_year) >= 18
+        and int(regulation_year) < 22
+        and entry_type == "Regular"
+    ) or (regulation_year == "22" and entry_type == "Lateral"):
         regulation_key = "R18"
     elif int(regulation_year) >= 22:
         regulation_key = "R22"
