@@ -33,10 +33,10 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
             "results": studentCredits(marks, credits),
         }
 
-        # if redisConnection.client:
-        # redisConnection.client.set(
-        #     roll_backlogs_key, json.dumps(result), ex=EXPIRY_TIME
-        # )
+        if redisConnection.client:
+            redisConnection.client.set(
+                roll_credits_checker_key, json.dumps(result), ex=EXPIRY_TIME
+            )
 
         await publish_message(app, roll_number)
 
