@@ -433,7 +433,7 @@ class ResultScraper:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         }
         async with session.get(
-            self.url + payloaddata, ssl=False, headers=headers
+            self.url + payloaddata, ssl=False, headers=headers, timeout=5
         ) as response:
             return await response.text()
 
@@ -585,6 +585,7 @@ class ResultScraper:
                         for response in responses:
                             if (
                                 "Enter HallTicket Number" not in response
+                                and "SUBJECT CODE" in response
                                 # and "Internal Server Error" not in response
                             ):
                                 self.scrape_results(exam_code, response)
@@ -592,6 +593,7 @@ class ResultScraper:
                         self.logger.error(
                             f"Error fetching resultgs for {exam_code}: {e}"
                         )
+                        self.failed_exam_codes.append(exam_code)
                 for exam_result in self.exam_code_results:
                     exam_code = exam_result["examCode"]
                     for semester, codes in exam_codes.items():
@@ -612,10 +614,13 @@ class ResultScraper:
                 retries += 1
                 failed_codes = list(set(self.failed_exam_codes))
                 self.failed_exam_codes = []
+                scraping_logger.info(
+                    f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.failed_exam_codes)} retrying again in {retries}"
+                )
                 await self.scrape_all_results(failed_codes)
             if self.failed_exam_codes:
                 scraping_logger.info(
-                    f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.exam_codes)}"
+                    f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.failed_exam_codes)}"
                 )
                 return None
             if retries:
