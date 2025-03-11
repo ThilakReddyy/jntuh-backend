@@ -38,7 +38,7 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
                 roll_credits_checker_key, json.dumps(result), ex=EXPIRY_TIME
             )
 
-        await publish_message(app, roll_number)
+        # await publish_message(app, roll_number)
 
         return result
 

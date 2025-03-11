@@ -35,7 +35,7 @@ async def fetch_results(app: FastAPI, roll_number: str):
         else:
             redis_logger.warning(f"Unable to connect to redis {roll_number}")
 
-        await publish_message(app, roll_number)
+        # await publish_message(app, roll_number)
 
         return result
 

@@ -64,7 +64,7 @@ async def consume_messages():
         async with connection:
             channel = await connection.channel()
 
-            # await channel.set_qos(prefetch_count=2)  # ADD THIS LINE
+            await channel.set_qos(prefetch_count=2)  # ADD THIS LINE
 
             # Declare the queue
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
