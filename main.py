@@ -59,7 +59,11 @@ app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (Use specific domains in production)
+    allow_origins=[
+        "http://localhost",  # If testing locally
+        "https://jntuhresults.dhethi.com",
+        "https://jntuhresults.vercel.app",
+    ],  # Allows all origins (Use specific domains in production)
     allow_credentials=True,
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
