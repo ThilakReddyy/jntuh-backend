@@ -1,7 +1,7 @@
 import aio_pika
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
-from config.settings import QUEUE_NAME
+from config.settings import QUEUE_NAME, RABBITMQ_MAX_MESSAGES
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
@@ -32,7 +32,7 @@ async def publish_message(app: FastAPI, rollNo: str):
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
 
             message_count = queue.declaration_result.message_count
-            if message_count > 600:
+            if message_count > RABBITMQ_MAX_MESSAGES:
                 rabbitmq_logger.warning("Server had execced the threshold level")
                 return {
                     "status": "failure",
