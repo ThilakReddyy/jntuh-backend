@@ -4,7 +4,7 @@ import aio_pika
 from config.connection import prismaConnection
 from config.redisConnection import redisConnection
 from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_URL
-from database.operations import save_to_database
+from database.operations import get_exam_codes_from_database, save_to_database
 from scrapers.resultNotificationScraper import get_notifications
 from scrapers.resultScraper import ResultScraper
 from scrapers.serverChecker import check_url
@@ -30,7 +30,8 @@ async def process_message(message_body: str):
             rabbitmq_logger.warning("No url found, skipping processing...")
             return
 
-        scraper = ResultScraper(message_body, url)
+        exam_codes = await get_exam_codes_from_database(message_body)
+        scraper = ResultScraper(message_body, exam_codes, url)
         rabbitmq_logger.info(f"Started scraper for {message_body}")
         results = await scraper.run()
         if results is None:

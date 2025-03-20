@@ -191,3 +191,7 @@ def studentBacklogs(results: List[mark]):
         "semesters": backlogs_data,
         "totalBacklogs": total_backlogs,
     }
+
+
+def studentResultContrast(result1, result2):
+    return [result1, result2]

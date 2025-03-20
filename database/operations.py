@@ -85,6 +85,23 @@ async def save_subject_and_marks(rollNumber, result):
         )
 
 
+async def get_exam_codes_from_database(roll_number):
+    student = await prismaConnection.prisma.student.find_unique(
+        where={"rollNumber": roll_number}
+    )
+
+    if not student:
+        return set()
+
+    # Fetch only the examCode field instead of all mark data
+    marks = await prismaConnection.prisma.mark.find_many(
+        where={"studentId": student.id},
+    )
+
+    # Use a set comprehension for better performance
+    return {mark.examCode for mark in marks}
+
+
 async def save_to_database(results):
     details = results["details"]
     rollNo = details["rollNo"]

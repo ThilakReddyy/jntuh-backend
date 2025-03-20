@@ -1,10 +1,9 @@
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
 import json
-import time
 
 from config.settings import EXPIRY_TIME
-from database.models import studentBacklogs, studentCredits, studentDetailsModel
+from database.models import studentCredits, studentDetailsModel
 from database.operations import get_details
 from messaging.publisher import publish_message
 from utils.helpers import get_credit_regulation_details

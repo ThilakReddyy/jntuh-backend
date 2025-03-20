@@ -37,6 +37,38 @@ def validateRollNo(rollNumber: str = Query(..., min_length=10, max_length=10)):
     return rollNumber.strip().upper()
 
 
+def validateconstrastRollNos(
+    rollNumber1: str = Query(..., min_length=10, max_length=10),
+    rollNumber2: str = Query(..., min_length=10, max_length=10),
+):
+    """Custom validation function for rollNo"""
+    if (
+        not rollNumber1.isalnum() or not rollNumber2.isalnum()
+    ):  # Checks if rollNo contains only alphanumeric characters
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid roll number. It should contain only letters and numbers.",
+        )
+    if (
+        rollNumber1.strip().upper() == rollNumber2.strip().upper()
+    ):  # Checks if rollNo contains only alphanumeric characters
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Both the roll Number are same. Kindly use two diff roll Numbers",
+        )
+
+    if (
+        rollNumber1.strip().upper()[:2] != rollNumber2.strip().upper()[:2]
+        and rollNumber1.strip().upper()[4:8] != rollNumber2.strip().upper()[4:8]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The two roll numbers should be of same Regulation, year and Branch ",
+        )
+
+    return [rollNumber1.strip().upper(), rollNumber2.strip().upper()]
+
+
 def get_credit_regulation_details(roll_number: str):
     credit_regulation_details = {
         "btech": {
