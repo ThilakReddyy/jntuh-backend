@@ -4,9 +4,10 @@ from fastapi.responses import RedirectResponse
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
 from service.getRequiredCreditsService import fetch_required_credits
+from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
 from service.notificationService import notification
-from utils.helpers import validateRollNo
+from utils.helpers import validateRollNo, validateconstrastRollNos
 
 router = APIRouter()
 
@@ -61,6 +62,17 @@ def create_routes(app: FastAPI):
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_required_credits(app, roll_no)
+
+    @router.get(
+        "/api/getResultContrast",
+        summary="Get Result Contrast ",
+        description="Retrives difference between two students marks",
+        tags=["Results"],
+    )
+    async def get_result_contrast(
+        roll_nos: list[str] = Depends(validateconstrastRollNos),
+    ):
+        return await fetch_result_contrast(app, roll_nos[0], roll_nos[1])
 
     @router.get(
         "/api/notifications",
