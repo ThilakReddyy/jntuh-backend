@@ -6,6 +6,7 @@ from service.getBacklogsService import fetch_backlogs
 from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
+from service.hardrefresh import fetch_results_using_hard_refresh
 from service.notificationService import notification
 from utils.helpers import validateRollNo, validateconstrastRollNos
 
@@ -73,6 +74,17 @@ def create_routes(app: FastAPI):
         roll_nos: list[str] = Depends(validateconstrastRollNos),
     ):
         return await fetch_result_contrast(app, roll_nos[0], roll_nos[1])
+
+    @router.get(
+        "/api/hardRefresh",
+        summary="Hard Refresh",
+        description="Refresh the result of student",
+        tags=["Results"],
+    )
+    async def hard_refresh(
+        roll_no: str = Depends(validateRollNo),
+    ):
+        return await fetch_results_using_hard_refresh(app, roll_no)
 
     @router.get(
         "/api/notifications",
