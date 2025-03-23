@@ -177,7 +177,8 @@ def studentBacklogs(results: List[mark]):
     processed_results = processResults(results)["semesters"]
     backlogs_data = []
     for sem in processed_results:
-        if sem["backlogs"] > 1:
+        if sem["backlogs"] >= 1.0:
+            print("here")
             backlogSubjects = []
             for subject in sem["subjects"]:
                 grade_value = getGradeValue(subject["grades"])
