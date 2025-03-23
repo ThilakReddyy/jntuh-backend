@@ -65,7 +65,8 @@ def studentAllResultsModel(
     ]
 
 
-def calculateGPA(grades: float, credits: float) -> float:
+def calculateGPA(grades: float, credits: float) -> str:
+    return f"{round(grades / credits, 2):.2f}" if credits > 0 else "0.00"
     return round(grades / credits, 2) if credits > 0 else 0.0
 
 
@@ -194,4 +195,88 @@ def studentBacklogs(results: List[mark]):
 
 
 def studentResultContrast(result1, result2):
-    return [result1, result2]
+    # Extract basic details for both students
+    student1_profile = {
+        "name": result1["details"]["name"],
+        "rollNumber": result1["details"]["rollNumber"],
+        "collegeCode": result1["details"]["collegeCode"],
+        "fatherName": result1["details"]["fatherName"],
+        "CGPA": result1["results"]["CGPA"],
+        "backlogs": result1["results"]["backlogs"],
+        "credits": result1["results"]["credits"],
+    }
+
+    student2_profile = {
+        "name": result2["details"]["name"],
+        "rollNumber": result2["details"]["rollNumber"],
+        "collegeCode": result2["details"]["collegeCode"],
+        "fatherName": result2["details"]["fatherName"],
+        "CGPA": result2["results"]["CGPA"],
+        "backlogs": result2["results"]["backlogs"],
+        "credits": result2["results"]["credits"],
+    }
+
+    # Initialize a dictionary to store semester-wise comparison
+    semester_comparison = {}
+
+    # Process semester data for the first student
+    for semester in result1["results"]["semesters"]:
+        semester_key = semester["semester"]
+        semester_comparison[semester_key] = [
+            {
+                "semester": semester_key,
+                "semesterSGPA": semester["semesterSGPA"],
+                "semesterCredits": semester["semesterCredits"],
+                "semesterGrades": semester["semesterGrades"],
+                "backlogs": semester["backlogs"],
+                "failed": semester["failed"],
+            },
+            {
+                "semester": semester_key,
+                "semesterSGPA": "-",
+                "semesterCredits": "-",
+                "semesterGrades": "-",
+                "backlogs": "-",
+                "failed": False,
+            },
+        ]
+
+    # Process semester data for the second student
+    for semester in result2["results"]["semesters"]:
+        semester_key = semester["semester"]
+        if semester_key in semester_comparison:
+            semester_comparison[semester_key][1] = {
+                "semester": semester_key,
+                "semesterSGPA": semester["semesterSGPA"],
+                "semesterCredits": semester["semesterCredits"],
+                "semesterGrades": semester["semesterGrades"],
+                "backlogs": semester["backlogs"],
+                "failed": semester["failed"],
+            }
+        else:
+            semester_comparison[semester_key] = [
+                {
+                    "semester": semester_key,
+                    "semesterSGPA": "-",
+                    "semesterCredits": "-",
+                    "semesterGrades": "-",
+                    "backlogs": "-",
+                    "failed": False,
+                },
+                {
+                    "semester": semester_key,
+                    "semesterSGPA": semester["semesterSGPA"],
+                    "semesterCredits": semester["semesterCredits"],
+                    "semesterGrades": semester["semesterGrades"],
+                    "backlogs": semester["backlogs"],
+                    "failed": semester["failed"],
+                },
+            ]
+
+    # Combine the results into a single dictionary
+    result = {
+        "studentProfiles": [student1_profile, student2_profile],
+        "semesters": list(semester_comparison.values()),
+    }
+
+    return result
