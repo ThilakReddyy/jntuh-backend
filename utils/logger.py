@@ -1,8 +1,23 @@
 import logging
 
+import queue
+from logging_loki import LokiQueueHandler
+
+
 # Common log format
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+LOKI_ENDPOINT = "http://localhost:3100/loki/api/v1/push"
+
+log_queue = queue.Queue(-1)  # -1 for infinite size
+loki_handler = LokiQueueHandler(
+    queue=log_queue,
+    url=LOKI_ENDPOINT,
+    tags={"application": "fastapi"},
+    version="1",
+)
+
 
 # Main Logger
 logging.basicConfig(
@@ -21,26 +36,18 @@ database_logger = logging.getLogger("database")
 redis_logger = logging.getLogger("redis")
 scraping_logger = logging.getLogger("scraping")
 
-# Add separate handlers for RabbitMQ logs
-rabbitmq_handler = logging.FileHandler("rabbitmq.log")
-rabbitmq_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
-rabbitmq_logger.addHandler(rabbitmq_handler)
 
-# Add separate handlers for Database logs
-database_handler = logging.FileHandler("database.log")
-database_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
-database_logger.addHandler(database_handler)
+def add_file_handler(logger, filename):
+    handler = logging.FileHandler(filename)
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    logger.addHandler(handler)
+    logger.addHandler(loki_handler)  # Send component logs to Loki as well
 
-# Add separate handlers for Redis logs
-redis_handler = logging.FileHandler("redis.log")
-redis_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
-redis_logger.addHandler(redis_handler)
 
-# Add separate handlers for Redis logs
-scraping_handler = logging.FileHandler("scraper.log")
-scraping_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
-scraping_logger.addHandler(scraping_handler)
-
+add_file_handler(rabbitmq_logger, "rabbitmq.log")
+add_file_handler(database_logger, "database.log")
+add_file_handler(redis_logger, "redis.log")
+add_file_handler(scraping_logger, "scraper.log")
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.ERROR)

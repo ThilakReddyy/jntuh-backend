@@ -2,16 +2,12 @@ import aio_pika
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import asyncio
-
 from fastapi.openapi.utils import get_openapi
-
 
 from api.routes import create_routes
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
-from messaging.consumer import consume_messages
 from utils.logger import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 

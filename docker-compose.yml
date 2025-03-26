@@ -71,6 +71,12 @@ services:
 
     entrypoint: ["/app/entrypoint.sh"]
 
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+
 volumes:
   postgres_data:
   prometheus_data:
