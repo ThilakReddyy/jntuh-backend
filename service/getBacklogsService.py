@@ -1,6 +1,6 @@
 import json
 from fastapi import FastAPI
-from config.redisConnection import redisConnection
+from config.redisConnection import getRedisKeyValue, redisConnection
 from config.settings import EXPIRY_TIME
 from database.models import (
     studentBacklogs,
@@ -15,10 +15,10 @@ async def fetch_backlogs(app: FastAPI, roll_number: str):
 
     roll_backlogs_key = f"{roll_number}Backlogs"
 
-    if redisConnection.client:
-        cached_data = redisConnection.client.get(roll_backlogs_key)
-        if cached_data:
-            return json.loads(cached_data)  # pyright: ignore
+    response = getRedisKeyValue(roll_backlogs_key)
+    if response is not None:
+        return json.loads(response)  # pyright: ignore
+
     response = await get_details(roll_number)
     if response:
         student, marks = response

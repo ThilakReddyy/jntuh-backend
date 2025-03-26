@@ -6,6 +6,7 @@ from logging_loki import LokiQueueHandler
 
 # Common log format
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"
+LOG_FORMAT = "%(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOKI_ENDPOINT = "http://loki:3100/loki/api/v1/push"
 

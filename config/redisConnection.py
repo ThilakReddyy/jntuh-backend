@@ -24,3 +24,12 @@ class RedisConnection:
 
 
 redisConnection = RedisConnection()
+
+
+def getRedisKeyValue(key):
+    if redisConnection.client:
+        cached_data = redisConnection.client.get(key)
+        if cached_data:
+            redis_logger.info(f"Cache hit for {key}")
+            return cached_data  # pyright: ignore
+    return None

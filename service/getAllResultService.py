@@ -1,9 +1,5 @@
-from datetime import datetime
 import json
-from typing import List
-
-from config.redisConnection import redisConnection
-from prisma.models import student, mark
+from config.redisConnection import getRedisKeyValue, redisConnection
 from config.settings import EXPIRY_TIME
 from database.models import studentAllResultsModel, studentDetailsModel
 from database.operations import get_details
@@ -16,10 +12,9 @@ async def fetch_all_results(app: FastAPI, roll_number: str):
 
     roll_all_key = f"{roll_number}ALL"
 
-    if redisConnection.client:
-        cached_data = redisConnection.client.get(roll_all_key)
-        if cached_data:
-            return json.loads(cached_data)  # pyright: ignore
+    response = getRedisKeyValue(roll_all_key)
+    if response is not None:
+        return json.loads(response)  # pyright: ignore
 
     response = await get_details(roll_number)
 
