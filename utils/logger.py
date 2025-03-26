@@ -7,8 +7,7 @@ from logging_loki import LokiQueueHandler
 # Common log format
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-LOKI_ENDPOINT = "http://localhost:3100/loki/api/v1/push"
+LOKI_ENDPOINT = "http://loki:3100/loki/api/v1/push"
 
 log_queue = queue.Queue(-1)  # -1 for infinite size
 loki_handler = LokiQueueHandler(

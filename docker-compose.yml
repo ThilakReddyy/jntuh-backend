@@ -76,7 +76,10 @@ services:
     container_name: loki
     ports:
       - "3100:3100"
+    volumes:
+      - loki_data:/loki # Persistent storage for Loki logs
 
 volumes:
   postgres_data:
   prometheus_data:
+  loki_data: # Added persistent volume for Loki
