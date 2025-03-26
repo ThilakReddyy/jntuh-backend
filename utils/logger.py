@@ -27,6 +27,7 @@ logging.basicConfig(
     handlers=[
         logging.FileHandler("app.log"),  # General app logs
         logging.StreamHandler(),  # Print to console
+        loki_handler,
     ],
 )
 
@@ -51,5 +52,6 @@ add_file_handler(scraping_logger, "scraper.log")
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.ERROR)
+
 
 logger = logging.getLogger(__name__)
