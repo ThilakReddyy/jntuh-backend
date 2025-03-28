@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, FastAPI, Depends
 from fastapi.responses import RedirectResponse
 
@@ -92,7 +93,13 @@ def create_routes(app: FastAPI):
         description="Retrieves all the notifications.",
         tags=["Notifications"],
     )
-    async def get_notifications():
-        return await notification(app)
+    async def get_notifications(
+        page: int,
+        regulation: str = "",
+        degree: str = "",
+        year: str = "",
+        title: str = "",
+    ):
+        return await notification(app, page, regulation, degree, year, title)
 
     return router

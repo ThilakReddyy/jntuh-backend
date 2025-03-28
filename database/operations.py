@@ -1,4 +1,6 @@
 from datetime import datetime
+
+from prisma.types import examcodesWhereInput
 from config.connection import prismaConnection
 from utils.logger import database_logger
 
@@ -159,3 +161,44 @@ async def get_details(roll_number: str):
         )
         return [student, marks]
     return None
+
+
+async def get_notifications(
+    page: int, regulation: str = "", degree: str = "", year: str = "", title: str = ""
+):
+    page_size = 10  # Adjust as needed
+    skip = (page - 1) * page_size
+    where_clause: examcodesWhereInput = {}
+    if regulation:
+        where_clause["regulation"] = regulation
+    if degree:
+        where_clause["degree"] = degree
+    if year:
+        where_clause["releaseDate"] = {
+            "contains": str(year),  # Equivalent to SQL's LIKE '%year%'
+            "mode": "insensitive",  # Optional: Makes it case-insensitive
+        }
+    if title:
+        where_clause["title"] = {
+            "contains": str(title),  # Equivalent to SQL's LIKE '%year%'
+            "mode": "insensitive",  # Optional: Makes it case-insensitive
+        }
+    print(where_clause)
+
+    notifications = await prismaConnection.prisma.examcodes.find_many(
+        where=where_clause,
+        skip=skip,
+        take=page_size,
+        order={"releaseDate": "desc"},
+    )
+    results = []
+    for notification in notifications:
+        results.append(
+            {
+                "title": notification.title,
+                "releaseDate": notification.releaseDate,
+                "date": notification.date,
+                "link": notification.link,
+            }
+        )
+    return results

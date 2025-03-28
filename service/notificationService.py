@@ -1,18 +1,25 @@
 import json
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
-from config.settings import NOTIFICATIONS_REDIS_KEY
-from messaging.publisher import publish_message
+from config.settings import FIVE_MINUTE_EXPIRY, NOTIFICATIONS_REDIS_KEY
+from database.operations import get_notifications
 
 
-async def notification(app: FastAPI):
+async def notification(
+    app: FastAPI, page: int, regulation: str, degree: str, year: str, title: str
+):
     """Get Notifications"""
     try:
+        key = NOTIFICATIONS_REDIS_KEY + str(page) + regulation + degree + year + title
         if redisConnection.client:
-            cached_data = redisConnection.client.get(NOTIFICATIONS_REDIS_KEY)
+            cached_data = redisConnection.client.get(key)
             if cached_data:
                 return json.loads(cached_data)  # pyright: ignore
 
-        return await publish_message(app, NOTIFICATIONS_REDIS_KEY)
+        results = await get_notifications(page, regulation, degree, year, title)
+        if redisConnection.client:
+            redisConnection.client.set(key, json.dumps(results), ex=FIVE_MINUTE_EXPIRY)
+        return results
+
     except Exception:
         return {"status": "failure", "message": "Unexpected error has occured"}
