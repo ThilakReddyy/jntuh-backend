@@ -3,7 +3,12 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from config.redisConnection import redisConnection
-from config.settings import NOTIFICATIONS_REDIS_KEY
+from config.settings import (
+    NOTIFICATIONS_EXPIRY_TIME,
+    NOTIFICATIONS_REDIS_KEY,
+)
+from database.operations import save_exam_codes
+from utils.logger import logger
 
 
 # Month mapping dictionary
@@ -23,6 +28,58 @@ MONTH_MAP = {
 }
 
 
+def categorize_degree(index):
+    if index == 0:
+        return "btech"
+    elif index == 1:
+        return "bpharmacy"
+    elif index == 2:
+        return "mtech"
+    elif index == 3:
+        return "mpharmacy"
+    elif index == 4:
+        return "mba"
+    elif index == 5:
+        return "mca"
+    return ""
+
+
+def categorize_semester_code(title):
+    # Categorize the exam code based on the result text
+    if " I Year I " in title:
+        return "1-1"
+    elif " I Year II " in title:
+        return "1-2"
+    elif " II Year I " in title:
+        return "2-1"
+    elif " II Year II " in title:
+        return "2-2"
+    elif " III Year I " in title:
+        return "3-1"
+    elif " III Year II " in title:
+        return "3-2"
+    elif " IV Year I " in title:
+        return "4-1"
+    elif " IV Year II " in title:
+        return "4-2"
+    else:
+        return None
+
+
+def categorize_masters_exam_code(title):
+    # Categorize the masters exam code based on the result text
+    if " I Semester" in title:
+        return "1-1"
+    elif " II Semester" in title:
+        return "1-2"
+    elif " III Semester" in title:
+        return "2-1"
+    elif " IV Semester" in title:
+        return "2-2"
+    else:
+        return None
+
+
 def fetch_results():
     """Fetch and parse JNTUH results page."""
     url = "http://results.jntuh.ac.in/jsp/home.jsp"
@@ -36,7 +93,7 @@ def fetch_results():
         return soup.find_all("table")[:8]  # Get only the first 8 tables
 
     except requests.RequestException as e:
-        print(f"Error fetching results: {e}")
+        logger.info(f"Error fetching results: {e}")
         return None
 
 
@@ -44,6 +101,7 @@ def parse_results(tables):
     """Extracts notifications from parsed HTML tables."""
     results = []
 
+    i = 0
     for table in tables:
         for row in table.find_all("tr"):
             try:
@@ -61,16 +119,31 @@ def parse_results(tables):
 
                 results.append(
                     {
-                        "Result_title": result_title,
-                        "Link": f"http://results.jntuh.ac.in{result_link}",
-                        "Date": result_date,
+                        "title": result_title,
+                        "link": f"http://results.jntuh.ac.in{result_link}",
+                        "date": result_date,
+                        "degree": categorize_degree(i),
                     }
                 )
 
             except (AttributeError, IndexError, TypeError):
                 continue  # Skip rows that don't have valid data
+        i = i + 1
 
     return results
+
+
+def extract_exam_code(url):
+    # Extract the exam code from the result link
+    try:
+        params = url.split("?")[1].split("&")
+        for param in params:
+            if "examCode" in param:
+                examCode = param.split("=")[1]
+                return examCode
+    except Exception as e:
+        print(e, url)
+        return ""
 
 
 def format_dates(results):
@@ -79,10 +152,10 @@ def format_dates(results):
 
     for result in results:
         try:
-            if result["Date"] == "21-AUGUST-2023":
-                result["formatted_date"] = "2024-08-21"
+            if result["date"] == "21-AUGUST-2023":
+                result["releaseDate"] = "2024-08-21"
             else:
-                day, month_abbr, year = result["Date"].split("-")
+                day, month_abbr, year = result["date"].split("-")
                 month_abbr = month_abbr[:3].upper()  # Normalize month abbreviation
                 month = MONTH_MAP.get(month_abbr, None)
 
@@ -90,26 +163,61 @@ def format_dates(results):
                     formatted_date = datetime(int(year), month, int(day)).strftime(
                         "%Y-%m-%d"
                     )
-                    result["formatted_date"] = formatted_date
+                    result["releaseDate"] = formatted_date
                     formatted_results.append(result)
 
         except ValueError as e:
-            print(f"Error parsing date {result['Date']}: {e}")
+            logger.error(f"Error parsing date {result['date']}: {e}")
 
-    return sorted(formatted_results, key=lambda x: x["formatted_date"], reverse=True)
+    return sorted(formatted_results, key=lambda x: x["releaseDate"], reverse=True)
 
 
-def get_notifications():
+def isrcrv(title):
+    return "RCRV" in title or "RC/RV" in title
+
+
+def get_exam_codes(results):
+    for result in results:
+        result["regulation"] = None
+        result["semesterCode"] = None
+        result["examCode"] = None
+        result["rcrv"] = False
+        try:
+            semester_code = categorize_semester_code(result["title"])
+
+            if semester_code is None:
+                semester_code = categorize_masters_exam_code(result["title"])
+
+            regulation = result["title"].split("(")[1].split(")")[0]
+            examCode = extract_exam_code(result["link"])
+
+            result["regulation"] = regulation
+            result["semesterCode"] = semester_code
+            result["examCode"] = examCode
+            result["rcrv"] = isrcrv(result["title"])
+        except Exception:
+            pass
+    return results
+
+
+async def get_notifications():
     """Fetches, parses, and caches JNTUH notifications."""
-    tables = fetch_results()
-    if not tables:
-        return None  # Exit if fetching fails
+    try:
+        tables = fetch_results()
+        if not tables:
+            return None  # Exit if fetching fails
 
-    results = parse_results(tables)
-    results = format_dates(results)
+        results = parse_results(tables)
+        results = format_dates(results)
 
-    if redisConnection.client:
-        redisConnection.client.set(
-            NOTIFICATIONS_REDIS_KEY,
-            json.dumps(results),
-        )
+        if redisConnection.client:
+            redisConnection.client.set(
+                NOTIFICATIONS_REDIS_KEY,
+                json.dumps(results),
+                ex=NOTIFICATIONS_EXPIRY_TIME,
+            )
+        results = get_exam_codes(results)
+
+        await save_exam_codes(results)
+    except Exception as e:
+        logger.info(f"Error while fetching notifications:{e}")

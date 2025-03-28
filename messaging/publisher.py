@@ -1,7 +1,7 @@
 import aio_pika
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
-from config.settings import QUEUE_NAME, RABBITMQ_MAX_MESSAGES
+from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_MAX_MESSAGES
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
@@ -19,6 +19,7 @@ async def publish_message(app: FastAPI, rollNo: str):
                     "message": "JNTUH SERVERS ARE DOWN!!",
                 }
             # Check if rollNo is already in Redis
+
             if redisConnection.client.sismember("rabbitmq_roll_numbers", rollNo):
                 rabbitmq_logger.info(
                     f"Roll number {rollNo} already exists in queue. Skipping..."
@@ -44,7 +45,7 @@ async def publish_message(app: FastAPI, rollNo: str):
                 routing_key=QUEUE_NAME,
             )
 
-            if redisConnection.client:
+            if redisConnection.client and rollNo != NOTIFICATIONS_REDIS_KEY:
                 redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
         return {
             "status": "success",

@@ -85,6 +85,41 @@ async def save_subject_and_marks(rollNumber, result):
         )
 
 
+async def save_exam_codes(results):
+    try:
+        exam_pairs = [
+            (result["rcrv"], result["examCode"], result["date"]) for result in results
+        ]
+        existing_exams = await prismaConnection.prisma.examcodes.find_many(
+            where={
+                "OR": [
+                    {"rcrv": pair[0], "examCode": pair[1], "date": pair[2]}
+                    for pair in exam_pairs
+                ]
+            },
+        )
+
+        existing_pairs = {
+            (exam.rcrv, exam.examCode, exam.date) for exam in existing_exams
+        }
+
+        new_exams = [
+            exam
+            for exam in results
+            if (exam["rcrv"], exam["examCode"], exam["date"]) not in existing_pairs
+        ]
+        if new_exams:
+            # Bulk insert only new records
+            inserted_records = await prismaConnection.prisma.examcodes.create_many(
+                data=new_exams
+            )
+            database_logger.info(f"Inserted {inserted_records} new records")
+        else:
+            database_logger.info("No new records to insert")
+    except Exception as e:
+        database_logger.error(f"Database error while inserting exam_codes: {e}")
+
+
 async def get_exam_codes_from_database(roll_number):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": roll_number}

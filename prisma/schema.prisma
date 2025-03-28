@@ -48,3 +48,18 @@ model mark {
 
   @@unique([studentId, semesterCode, examCode, subjectId, rcrv])
 }
+
+model examcodes {
+  id           String  @id @default(uuid())
+  title        String
+  link         String
+  degree       String
+  regulation   String?
+  semesterCode String?
+  examCode     String?
+  rcrv         Boolean
+  releaseDate  String
+  date         String
+
+  @@unique([examCode, rcrv,date])
+}

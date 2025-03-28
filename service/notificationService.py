@@ -11,8 +11,6 @@ async def notification(app: FastAPI):
         if redisConnection.client:
             cached_data = redisConnection.client.get(NOTIFICATIONS_REDIS_KEY)
             if cached_data:
-                await publish_message(app, NOTIFICATIONS_REDIS_KEY)
-
                 return json.loads(cached_data)  # pyright: ignore
 
         return await publish_message(app, NOTIFICATIONS_REDIS_KEY)

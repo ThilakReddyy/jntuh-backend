@@ -78,7 +78,7 @@ async def consume_messages():
                         async with message.process():
                             body = message.body.decode()
                             if body == NOTIFICATIONS_REDIS_KEY:
-                                get_notifications()
+                                await get_notifications()
                             else:
                                 await process_message(body)
 
