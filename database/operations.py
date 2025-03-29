@@ -183,7 +183,6 @@ async def get_notifications(
             "contains": str(title),  # Equivalent to SQL's LIKE '%year%'
             "mode": "insensitive",  # Optional: Makes it case-insensitive
         }
-    print(where_clause)
 
     notifications = await prismaConnection.prisma.examcodes.find_many(
         where=where_clause,
@@ -202,3 +201,21 @@ async def get_notifications(
             }
         )
     return results
+
+
+async def get_exam_codes(degree, regulation):
+    examCodesFromDb = await prismaConnection.prisma.examcodes.find_many(
+        where={"degree": degree, "regulation": regulation},
+        order=[{"semesterCode": "asc"}, {"examCode": "asc"}],
+    )
+    examCodes = {}
+    for examcode in examCodesFromDb:
+        if examcode.semesterCode not in examCodes:
+            examCodes[examcode.semesterCode] = set()
+        examCodes[examcode.semesterCode].add(examcode.examCode)
+
+    for examCode in examCodes:
+        examCodes[examCode] = list(examCodes[examCode])
+        examCodes[examCode].sort()
+
+    return examCodes

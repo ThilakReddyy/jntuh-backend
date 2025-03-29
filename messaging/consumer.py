@@ -5,7 +5,7 @@ from config.connection import prismaConnection
 from config.redisConnection import redisConnection
 from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_URL
 from database.operations import get_exam_codes_from_database, save_to_database
-from scrapers.resultNotificationScraper import get_notifications
+from scrapers.resultNotificationScraper import refresh_notifications
 from scrapers.resultScraper import ResultScraper
 from scrapers.serverChecker import check_url
 from utils.logger import rabbitmq_logger, logger, scraping_logger
@@ -19,11 +19,6 @@ async def process_message(message_body: str):
         Replace this logic with your custom processing code.
         """
         rabbitmq_logger.info(f"Processing message: {message_body}")
-
-        # Remove the roll number from Redis after successful processing
-        if redisConnection.client:
-            redisConnection.client.srem("rabbitmq_roll_numbers", message_body)
-            rabbitmq_logger.info(f"Removed roll number {message_body} from Redis.")
 
         url = check_url()
         if not url:
@@ -77,8 +72,17 @@ async def consume_messages():
                     try:
                         async with message.process():
                             body = message.body.decode()
+                            # Remove the roll number from Redis after successful processing
+                            if redisConnection.client:
+                                redisConnection.client.srem(
+                                    "rabbitmq_roll_numbers", body
+                                )
+                                rabbitmq_logger.info(
+                                    f"Removed roll number {body} from Redis."
+                                )
+
                             if body == NOTIFICATIONS_REDIS_KEY:
-                                await get_notifications()
+                                await refresh_notifications()
                             else:
                                 await process_message(body)
 

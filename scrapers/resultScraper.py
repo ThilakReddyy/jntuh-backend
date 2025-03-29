@@ -21,7 +21,6 @@ class ResultScraper:
         self.results = {"details": {}, "results": []}
         self.exam_code_results = []
         self.failed_exam_codes = []
-        self.exam_codes = load_exam_codes()
         self.omit_exam_codes = omit_exam_codes
         self.grades_to_gpa = {
             "O": 10,
@@ -193,7 +192,7 @@ class ResultScraper:
         if degree is None:
             return
 
-        exam_codes = self.exam_codes[degree][self._determine_regulation()]
+        exam_codes = await load_exam_codes(degree, self._determine_regulation())
 
         if self.roll_number[4] == "5":
             exam_codes.pop("1-1", None)

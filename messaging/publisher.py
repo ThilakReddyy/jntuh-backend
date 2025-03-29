@@ -45,8 +45,10 @@ async def publish_message(app: FastAPI, rollNo: str):
                 routing_key=QUEUE_NAME,
             )
 
-            if redisConnection.client and rollNo != NOTIFICATIONS_REDIS_KEY:
+            if redisConnection.client:
                 redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
+        if rollNo == NOTIFICATIONS_REDIS_KEY:
+            return {"status": "success", "message": "Notifications are been fetched"}
         return {
             "status": "success",
             "message": "Your roll number has been queued.",

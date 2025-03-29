@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from config.redisConnection import redisConnection
 from config.settings import FIVE_MINUTE_EXPIRY, NOTIFICATIONS_REDIS_KEY
 from database.operations import get_notifications
+from messaging.publisher import publish_message
+from scrapers.resultNotificationScraper import refresh_notifications
 
 
 async def notification(
@@ -23,3 +25,7 @@ async def notification(
 
     except Exception:
         return {"status": "failure", "message": "Unexpected error has occured"}
+
+
+async def refreshNotification(app: FastAPI):
+    return await publish_message(app, NOTIFICATIONS_REDIS_KEY)

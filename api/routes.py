@@ -8,7 +8,7 @@ from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
 from service.hardrefresh import fetch_results_using_hard_refresh
-from service.notificationService import notification
+from service.notificationService import notification, refreshNotification
 from utils.helpers import validateRollNo, validateconstrastRollNos
 
 router = APIRouter()
@@ -90,7 +90,7 @@ def create_routes(app: FastAPI):
     @router.get(
         "/api/notifications",
         summary="Fetch result notifications",
-        description="Retrieves all the notifications.",
+        description="Retrieves  the notifications for the specified filters.",
         tags=["Notifications"],
     )
     async def get_notifications(
@@ -101,5 +101,14 @@ def create_routes(app: FastAPI):
         title: str = "",
     ):
         return await notification(app, page, regulation, degree, year, title)
+
+    @router.get(
+        "/api/refreshnotifications",
+        summary="Refresh notifications",
+        description="Retrieves all the notifications.",
+        tags=["Notifications"],
+    )
+    async def refresh_notifications():
+        return await refreshNotification(app)
 
     return router

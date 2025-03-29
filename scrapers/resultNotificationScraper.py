@@ -46,21 +46,21 @@ def categorize_degree(index):
 
 def categorize_semester_code(title):
     # Categorize the exam code based on the result text
-    if " I Year I " in title:
+    if " I Year I " in title or " I B.Tech Year I Semester" in title:
         return "1-1"
-    elif " I Year II " in title:
+    elif " I Year II " in title or " I B.Tech Year II Semester" in title:
         return "1-2"
-    elif " II Year I " in title:
+    elif " II Year I " in title or " II B.Tech Year I Semester" in title:
         return "2-1"
-    elif " II Year II " in title:
+    elif " II Year II " in title or " II B.Tech Year II Semester" in title:
         return "2-2"
-    elif " III Year I " in title:
+    elif " III Year I " in title or " III B.Tech Year I Semester" in title:
         return "3-1"
-    elif " III Year II " in title:
+    elif " III Year II " in title or " III B.Tech Year II Semester" in title:
         return "3-2"
-    elif " IV Year I " in title:
+    elif " IV Year I " in title or " IV B.Tech Year I Semester" in title:
         return "4-1"
-    elif " IV Year II " in title:
+    elif " IV Year II " in title or " IV B.Tech Year II Semester" in title:
         return "4-2"
     else:
         return None
@@ -183,10 +183,12 @@ def get_exam_codes(results):
         result["examCode"] = None
         result["rcrv"] = False
         try:
-            semester_code = categorize_semester_code(result["title"])
+            semester_code = categorize_semester_code(" " + result["title"].strip())
 
             if semester_code is None:
-                semester_code = categorize_masters_exam_code(result["title"])
+                semester_code = categorize_masters_exam_code(
+                    " " + result["title"].strip()
+                )
 
             regulation = result["title"].split("(")[1].split(")")[0]
             examCode = extract_exam_code(result["link"])
@@ -200,7 +202,7 @@ def get_exam_codes(results):
     return results
 
 
-async def get_notifications():
+async def refresh_notifications():
     """Fetches, parses, and caches JNTUH notifications."""
     try:
         tables = fetch_results()
