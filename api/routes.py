@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, FastAPI, Depends
 from fastapi.responses import RedirectResponse
 

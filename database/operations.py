@@ -132,7 +132,7 @@ async def get_exam_codes_from_database(roll_number):
 
     # Fetch only the examCode field instead of all mark data
     marks = await prismaConnection.prisma.mark.find_many(
-        where={"studentId": student.id},
+        where={"studentId": student.id, "rcrv": False},
     )
 
     # Use a set comprehension for better performance
