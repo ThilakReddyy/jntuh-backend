@@ -106,6 +106,7 @@ def create_routes(app: FastAPI):
         summary="Refresh notifications",
         description="Retrieves all the notifications.",
         tags=["Notifications"],
+        include_in_schema=False,
     )
     async def refresh_notifications():
         return await refreshNotification(app)
