@@ -53,6 +53,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.openapi = custom_openapi
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -60,7 +61,6 @@ app.add_middleware(
         "https://jntuhresults.dhethi.com",
         "https://jntuhresults.vercel.app",
     ],  # Allows all origins (Use specific domains in production)
-    allow_credentials=True,
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
@@ -75,8 +75,8 @@ instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 @app.middleware("http")
 async def log_request(request, call_next):
-    client_ip = request.client.host  # Capture the client's IP
-    logger.info(f"Request from {client_ip}: {request.method} {request.url.path}")
+    host = request.headers["host"]
+    logger.info(f"Request from {host}: {request.method} {request.url.path}")
 
     # Process the request and continue
     response = await call_next(request)

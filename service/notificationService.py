@@ -4,7 +4,6 @@ from config.redisConnection import redisConnection
 from config.settings import FIVE_MINUTE_EXPIRY, NOTIFICATIONS_REDIS_KEY
 from database.operations import get_notifications
 from messaging.publisher import publish_message
-from scrapers.resultNotificationScraper import refresh_notifications
 
 
 async def notification(
