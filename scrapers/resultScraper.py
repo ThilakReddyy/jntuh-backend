@@ -13,6 +13,7 @@ class ResultScraper:
         self,
         roll_number,
         omit_exam_codes,
+        omit_rcrv_exam_codes,
         url="http://results.jntuh.ac.in/resultAction",
     ):
         # Initialize instance variables
@@ -22,6 +23,7 @@ class ResultScraper:
         self.exam_code_results = []
         self.failed_exam_codes = []
         self.omit_exam_codes = omit_exam_codes
+        self.omit_rcrv_exam_codes = omit_rcrv_exam_codes
         self.grades_to_gpa = {
             "O": 10,
             "A+": 9,
@@ -215,15 +217,16 @@ class ResultScraper:
                             self.logger.error(
                                 f"Error calling the api for {self.roll_number}:{e}"
                             )
-                    try:
-                        task = asyncio.create_task(
-                            self.fetch_result(session, code, payloads[1])
-                        )
-                        tasks[code].append(task)
-                    except Exception as e:
-                        self.logger.error(
-                            f"Error calling the api for {self.roll_number}:{e}"
-                        )
+                    if code not in self.omit_rcrv_exam_codes:
+                        try:
+                            task = asyncio.create_task(
+                                self.fetch_result(session, code, payloads[1])
+                            )
+                            tasks[code].append(task)
+                        except Exception as e:
+                            self.logger.error(
+                                f"Error calling the api for {self.roll_number}:{e}"
+                            )
 
                 for exam_code, exam_tasks in tasks.items():
                     try:

@@ -9,6 +9,7 @@ from scrapers.resultNotificationScraper import refresh_notifications
 from scrapers.resultScraper import ResultScraper
 from scrapers.serverChecker import check_url
 from utils.logger import rabbitmq_logger, logger, scraping_logger
+from utils.caching import invalidate_all_cache
 
 
 # Define a function to process messages
@@ -25,10 +26,18 @@ async def process_message(message_body: str):
             rabbitmq_logger.warning("No url found, skipping processing...")
             return
 
+        # get exam codes present in database
         exam_codes = await get_exam_codes_from_database(message_body)
-        scraper = ResultScraper(message_body, exam_codes, url)
+        exam_codes_rcrv = await get_exam_codes_from_database(message_body, True)
+
+        # intializeing the scraper
+        scraper = ResultScraper(message_body, exam_codes, exam_codes_rcrv, url)
+
+        # running the scraper
         rabbitmq_logger.info(f"Started scraper for {message_body}")
         results = await scraper.run()
+
+        # log if it fails to get the results
         if results is None:
             logger.warning(f"Failed to get results: {message_body}")
             return
@@ -37,6 +46,7 @@ async def process_message(message_body: str):
         # Database save
         rabbitmq_logger.info(f"Saving results to database for {message_body}")
         await save_to_database(results)
+        invalidate_all_cache(message_body)
 
     except Exception as e:
         scraping_logger.error(f"Error while scarping results: {e}")
