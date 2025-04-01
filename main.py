@@ -75,9 +75,8 @@ instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 @app.middleware("http")
 async def log_request(request, call_next):
-    host = request.headers["host"]
-    logger.info(f"Request fromi {host}: {request.method} {request.url.path}")
-    logger.info(request.headers, request.headers["host"])
+    host = request.headers.get("host")
+    logger.info(f"Request from {host}: {request.method} {request.url.path}")
 
     # Process the request and continue
     response = await call_next(request)
