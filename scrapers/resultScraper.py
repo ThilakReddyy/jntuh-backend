@@ -35,6 +35,16 @@ class ResultScraper:
             "Ab": 0,
             "-": 0,
         }
+        self.grades_to_gpa_bpharmacy_r22 = {
+            "O": 10,
+            "A": 9,
+            "B": 8,
+            "C": 7,
+            "D": 6,
+            "F": 0,
+            "Ab": 0,
+            "-": 0,
+        }
         self.payloads = self._load_payloads()
         self.logger = scraping_logger
         # Exam codes for different regulations and semesters
@@ -181,6 +191,13 @@ class ResultScraper:
 
     def _determine_regulation(self):
         grad_year = int(self.roll_number[:2])
+        if (
+            self.roll_number[5] == "R"
+            and grad_year >= 23
+            or (grad_year == 22 and self.roll_number[4] != "5")
+        ):
+            print("here")
+            self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
         if grad_year >= 23 or (grad_year == 22 and self.roll_number[4] != "5"):
             return "R22"
 

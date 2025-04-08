@@ -1,6 +1,7 @@
 import json
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
+from utils.helpers import isbpharmacyr22
 from utils.logger import redis_logger
 from config.settings import EXPIRY_TIME
 from database.models import (
@@ -25,7 +26,7 @@ async def fetch_results(app: FastAPI, roll_number: str):
         student, marks = response
         result = {
             "details": studentDetailsModel(student),
-            "results": studentResultsModel(marks),
+            "results": studentResultsModel(marks, isbpharmacyr22(roll_number)),
         }
 
         if redisConnection.client:

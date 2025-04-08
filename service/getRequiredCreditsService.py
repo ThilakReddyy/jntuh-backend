@@ -6,7 +6,7 @@ from config.settings import EXPIRY_TIME
 from database.models import studentCredits, studentDetailsModel
 from database.operations import get_details
 from messaging.publisher import publish_message
-from utils.helpers import get_credit_regulation_details
+from utils.helpers import get_credit_regulation_details, isbpharmacyr22
 
 
 async def fetch_required_credits(app: FastAPI, roll_number: str):
@@ -27,9 +27,12 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
     response = await get_details(roll_number)
     if response:
         student, marks = response
+        details = studentDetailsModel(student)
         result = {
-            "details": studentDetailsModel(student),
-            "results": studentCredits(marks, credits),
+            "details": details,
+            "results": studentCredits(
+                marks, credits, isbpharmacyr22(details["rollNumber"])
+            ),
         }
 
         if redisConnection.client:

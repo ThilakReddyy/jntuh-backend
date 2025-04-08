@@ -13,10 +13,31 @@ gradestogpa = {
     "Ab": 0,
     "-": 0,
 }
+gradestogpabppharamcyr22 = {
+    "O": 10,
+    "A": 9,
+    "B": 8,
+    "C": 7,
+    "D": 6,
+    "F": 0,
+    "Ab": 0,
+    "-": 0,
+}
 
 
-def getGradeValue(grade):
+def getGradeValue(grade, bpharmacyr22):
+    if bpharmacyr22:
+        return gradestogpabppharamcyr22.get(grade, 0)
     return gradestogpa.get(grade, 0)
+
+
+def isbpharmacyr22(roll_number):
+    grad_year = int(roll_number[:2])
+    return (
+        roll_number[5] == "R"
+        and grad_year >= 23
+        or (grad_year == 22 and roll_number[4] != "5")
+    )
 
 
 def isGreat(previousGrade, grade):

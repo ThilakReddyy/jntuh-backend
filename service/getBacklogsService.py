@@ -8,6 +8,7 @@ from database.models import (
 )
 from database.operations import get_details
 from messaging.publisher import publish_message
+from utils.helpers import isbpharmacyr22
 
 
 async def fetch_backlogs(app: FastAPI, roll_number: str):
@@ -22,9 +23,10 @@ async def fetch_backlogs(app: FastAPI, roll_number: str):
     response = await get_details(roll_number)
     if response:
         student, marks = response
+        details = studentDetailsModel(student)
         result = {
-            "details": studentDetailsModel(student),
-            "results": studentBacklogs(marks),
+            "details": details,
+            "results": studentBacklogs(marks, isbpharmacyr22(details["rollNumber"])),
         }
 
         if redisConnection.client:

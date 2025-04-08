@@ -5,7 +5,14 @@ from config.settings import SEMESTERS
 from utils.helpers import getGradeValue, isGreat
 
 
-def studentDetailsModel(details: student):
+class StudentDetails(TypedDict):
+    name: str
+    rollNumber: str
+    collegeCode: str
+    fatherName: str
+
+
+def studentDetailsModel(details: student) -> StudentDetails:
     return {
         "name": details.name,
         "rollNumber": details.rollNumber,
@@ -70,7 +77,7 @@ def calculateGPA(grades: float, credits: float) -> str:
     return round(grades / credits, 2) if credits > 0 else 0.0
 
 
-def processResults(results: List[mark]):
+def processResults(results: List[mark], bpharmacyR22):
     final_result = {}
     total_grades, total_credits, total_backlogs = 0.0, 0.0, 0
 
@@ -88,7 +95,7 @@ def processResults(results: List[mark]):
         subject_list = list(subjects.values())
 
         for subject in subject_list:
-            grade_value = getGradeValue(subject["grades"])
+            grade_value = getGradeValue(subject["grades"], bpharmacyR22)
             subject_credits = subject["credits"]
             semester_grades += grade_value * subject_credits
             semester_credits += subject_credits
@@ -122,12 +129,12 @@ def processResults(results: List[mark]):
     }
 
 
-def studentResultsModel(results: List[mark]):
-    return processResults(results)
+def studentResultsModel(results: List[mark], bpharmacyR22=False):
+    return processResults(results, bpharmacyR22)
 
 
-def studentCredits(results: List[mark], credits):
-    processed_results = processResults(results)
+def studentCredits(results: List[mark], credits, bpharmacyR22):
+    processed_results = processResults(results, bpharmacyR22)
     semester_results = processed_results["semesters"]
 
     # Extract semester-wise obtained credits
@@ -173,14 +180,14 @@ def studentCredits(results: List[mark], credits):
     return ret
 
 
-def studentBacklogs(results: List[mark]):
-    processed_results = processResults(results)["semesters"]
+def studentBacklogs(results: List[mark], bpharmacyR22):
+    processed_results = processResults(results, bpharmacyR22)["semesters"]
     backlogs_data = []
     for sem in processed_results:
         if sem["backlogs"] >= 1.0:
             backlogSubjects = []
             for subject in sem["subjects"]:
-                grade_value = getGradeValue(subject["grades"])
+                grade_value = getGradeValue(subject["grades"], bpharmacyR22)
                 if grade_value == 0:
                     backlogSubjects.append(subject)
             sem["subjects"] = backlogSubjects
