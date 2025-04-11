@@ -6,7 +6,10 @@ from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
 
-async def publish_message(app: FastAPI, rollNo: str):
+async def publish_message(
+    app: FastAPI,
+    rollNo: str,
+):
     """Publishes a message (roll number) to the RabbitMQ queue."""
 
     try:

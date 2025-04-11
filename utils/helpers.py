@@ -33,10 +33,8 @@ def getGradeValue(grade, bpharmacyr22):
 
 def isbpharmacyr22(roll_number):
     grad_year = int(roll_number[:2])
-    return (
-        roll_number[5] == "R"
-        and grad_year >= 23
-        or (grad_year == 22 and roll_number[4] != "5")
+    return roll_number[5] == "R" and (
+        grad_year >= 23 or (grad_year == 22 and roll_number[4] != "5")
     )
 
 

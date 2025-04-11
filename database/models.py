@@ -74,7 +74,6 @@ def studentAllResultsModel(
 
 def calculateGPA(grades: float, credits: float) -> str:
     return f"{round(grades / credits, 2):.2f}" if credits > 0 else "0.00"
-    return round(grades / credits, 2) if credits > 0 else 0.0
 
 
 def processResults(results: List[mark], bpharmacyR22):
