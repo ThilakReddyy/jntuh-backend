@@ -21,7 +21,7 @@ def check_url():
         optimized_url = url.split("?")[0]
 
         try:
-            response = requests.get(url, timeout=2)
+            response = requests.get(url, timeout=5)
             if response.status_code in {200, 201}:
                 scraping_logger.info(f"The URL {optimized_url} is working")
 
