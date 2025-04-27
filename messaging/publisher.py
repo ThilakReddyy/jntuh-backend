@@ -21,8 +21,8 @@ async def publish_message(
                     "status": "failure",
                     "message": "JNTUH SERVERS ARE DOWN!!",
                 }
-            # Check if rollNo is already in Redis
 
+            # Check if rollNo is already in Redis
             if redisConnection.client.sismember("rabbitmq_roll_numbers", rollNo):
                 rabbitmq_logger.info(
                     f"Roll number {rollNo} already exists in queue. Skipping..."
@@ -48,10 +48,13 @@ async def publish_message(
                 routing_key=QUEUE_NAME,
             )
 
-            if redisConnection.client:
-                redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
         if rollNo == NOTIFICATIONS_REDIS_KEY:
             return {"status": "success", "message": "Notifications are been fetched"}
+
+        # Add roll Number to the rabbitmq Roll Numbers
+        if redisConnection.client:
+            redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
+
         return {
             "status": "success",
             "message": "Your roll number has been queued.",
