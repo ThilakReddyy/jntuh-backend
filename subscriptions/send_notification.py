@@ -11,7 +11,13 @@ def send_push_notification(subscription_info, title, body):
     try:
         webpush(
             subscription_info=subscription_info,
-            data=json.dumps({"title": title, "body": body}),
+            data=json.dumps(
+                {
+                    "title": title,
+                    "body": body,
+                    "url": "https://jntuhresults.vercel.app/academicresult",
+                }
+            ),
             vapid_private_key=VAPID_PRIVATE_KEY,
             vapid_claims={"sub": "mailto:admin@dhethi.com"},
         )
