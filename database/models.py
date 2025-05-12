@@ -1,5 +1,6 @@
-from typing import List, TypedDict
+from typing import Any, List, TypedDict
 from prisma.models import student, mark
+from pydantic import BaseModel
 
 from config.settings import SEMESTERS
 from utils.helpers import getGradeValue, isGreat
@@ -10,6 +11,12 @@ class StudentDetails(TypedDict):
     rollNumber: str
     collegeCode: str
     fatherName: str
+
+
+class PushSub(BaseModel):
+    anon_id: str
+    roll_number: str | None = None
+    subscription: dict[str, Any]
 
 
 def studentDetailsModel(details: student) -> StudentDetails:

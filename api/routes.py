@@ -1,6 +1,13 @@
+import json
+from typing import Any
 from fastapi import APIRouter, FastAPI, Depends
 from fastapi.responses import RedirectResponse
+from prisma import Json
+from prisma.types import AnonPushSubscriptionUpdateInput
+from pydantic import BaseModel
 
+from config.connection import prismaConnection
+from database.models import PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
 from service.getRequiredCreditsService import fetch_required_credits
@@ -8,7 +15,9 @@ from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
 from service.hardrefresh import fetch_results_using_hard_refresh
 from service.notificationService import notification, refreshNotification
+from service.subscriptionService import save_subscription
 from utils.helpers import validateRollNo, validateconstrastRollNos
+
 
 router = APIRouter()
 
@@ -110,5 +119,15 @@ def create_routes(app: FastAPI):
     )
     async def refresh_notifications():
         return await refreshNotification(app)
+
+    @router.post(
+        "/save-subscription",
+        summary="Save Subscription",
+        description="Save the subscription for notification for particular device.",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def save_subscription_end_point(data: PushSub):
+        return await save_subscription(data)
 
     return router

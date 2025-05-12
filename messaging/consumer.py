@@ -8,6 +8,7 @@ from database.operations import get_exam_codes_from_database, save_to_database
 from scrapers.resultNotificationScraper import refresh_notifications
 from scrapers.resultScraper import ResultScraper
 from scrapers.serverChecker import check_url
+from subscriptions.send_notification import send_push_notification_to_particular_user
 from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
 
@@ -38,15 +39,18 @@ async def process_message(message_body: str):
         results = await scraper.run()
 
         # log if it fails to get the results
+
         if results is None:
             logger.warning(f"Failed to get results: {message_body}")
             return
+
         logger.info(f"Results was successfully extracted: {message_body}")
 
         # Database save
         rabbitmq_logger.info(f"Saving results to database for {message_body}")
         await save_to_database(results)
         invalidate_all_cache(message_body)
+        await send_push_notification_to_particular_user(message_body)
 
     except Exception as e:
         scraping_logger.error(f"Error while scarping results: {e}")

@@ -1,7 +1,10 @@
 from datetime import datetime
+import json
 
 from prisma.types import examcodesWhereInput
+from redis.client import PubSub
 from config.connection import prismaConnection
+from database.models import PushSub
 from utils.logger import database_logger
 
 
@@ -163,6 +166,19 @@ async def get_details(roll_number: str):
     return None
 
 
+async def get_subscription_roll_number(roll_number: str):
+    record = await prismaConnection.prisma.anonpushsubscription.find_first(
+        where={"rollNumber": roll_number},
+        order=[{"createdAt": "desc"}],
+    )
+    return record
+
+
+async def get_all_subscriptions():
+    record = await prismaConnection.prisma.anonpushsubscription.find_many()
+    return record
+
+
 async def get_notifications(
     page: int, regulation: str = "", degree: str = "", year: str = "", title: str = ""
 ):
@@ -219,3 +235,29 @@ async def get_exam_codes(degree, regulation):
         examCodes[examCode].sort()
 
     return examCodes
+
+
+async def get_subscription_by_anon_key(anon_key: str):
+    existing = await prismaConnection.prisma.anonpushsubscription.find_unique(
+        where={"anonId": anon_key}
+    )
+    return existing
+
+
+async def save_subscription_details(data: PushSub):
+    subscription_str = json.dumps(data.subscription)
+
+    return await prismaConnection.prisma.anonpushsubscription.upsert(
+        where={"anonId": data.anon_id},
+        data={
+            "update": {
+                "rollNumber": data.roll_number,
+                "subscription": subscription_str,
+            },
+            "create": {
+                "anonId": data.anon_id,
+                "rollNumber": data.roll_number,
+                "subscription": subscription_str,
+            },
+        },
+    )

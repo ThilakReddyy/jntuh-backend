@@ -6,7 +6,14 @@ from utils.logger import logger
 
 load_dotenv()
 
-required_env_vars = ["RABBITMQ_URL", "DATABASE_URL", "QUEUE_NAME", "REDIS_URL"]
+required_env_vars = [
+    "RABBITMQ_URL",
+    "DATABASE_URL",
+    "QUEUE_NAME",
+    "REDIS_URL",
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+]
 
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 
@@ -18,6 +25,8 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 DB_URL = os.getenv("DATABASE_URL")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
 REDIS_URL = os.getenv("REDIS_URL")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
 
 NOTIFICATIONS_EXPIRY_TIME = 1800
 EXPIRY_TIME = 600

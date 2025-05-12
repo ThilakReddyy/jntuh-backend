@@ -61,5 +61,15 @@ model examcodes {
   releaseDate  String
   date         String
 
-  @@unique([examCode, rcrv,date])
+  @@unique([examCode, rcrv, date])
+}
+
+model AnonPushSubscription {
+  id           Int      @id @default(autoincrement())
+  anonId       String   @unique @db.Uuid
+  rollNumber   String?  @db.Text
+  subscription String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@map("anon_push_subscriptions")
 }
