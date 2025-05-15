@@ -79,7 +79,21 @@ services:
     volumes:
       - loki_data:/loki # Persistent storage for Loki logs
 
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=adminjntuh
+      - GF_SECURITY_ADMIN_PASSWORD=getflat100
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - loki
 volumes:
   postgres_data:
   prometheus_data:
   loki_data: # Added persistent volume for Loki
+  grafana_data:
