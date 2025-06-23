@@ -1,7 +1,12 @@
 import aio_pika
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
-from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_MAX_MESSAGES
+from config.settings import (
+    NOTIFICATIONS_REDIS_KEY,
+    QUEUE_NAME,
+    RABBITMQ_MAX_MESSAGES,
+    RABBITMQ_ROLL_NUMBERS,
+)
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
 
@@ -23,7 +28,7 @@ async def publish_message(
                 }
 
             # Check if rollNo is already in Redis
-            if redisConnection.client.sismember("rabbitmq_roll_numbers", rollNo):
+            if redisConnection.client.sismember(RABBITMQ_ROLL_NUMBERS, rollNo):
                 rabbitmq_logger.info(
                     f"Roll number {rollNo} already exists in queue. Skipping..."
                 )
@@ -53,7 +58,8 @@ async def publish_message(
 
         # Add roll Number to the rabbitmq Roll Numbers
         if redisConnection.client:
-            redisConnection.client.sadd("rabbitmq_roll_numbers", rollNo)
+            redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo)
+            redisConnection.client.expire(RABBITMQ_ROLL_NUMBERS, 3600)
 
         return {
             "status": "success",

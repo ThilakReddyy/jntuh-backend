@@ -35,5 +35,6 @@ NOTIFICATIONS_REDIS_KEY = "notificationsi"
 REDIS_URL_KEY = "url"
 SEMESTERS = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2"]
 RABBITMQ_MAX_MESSAGES = 4000
+RABBITMQ_ROLL_NUMBERS = "rabbitmq_roll_numbers"
 
 logger.info("All required environment variables are set. Starting application...")

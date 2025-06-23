@@ -3,7 +3,12 @@ import aio_pika
 
 from config.connection import prismaConnection
 from config.redisConnection import redisConnection
-from config.settings import NOTIFICATIONS_REDIS_KEY, QUEUE_NAME, RABBITMQ_URL
+from config.settings import (
+    NOTIFICATIONS_REDIS_KEY,
+    QUEUE_NAME,
+    RABBITMQ_URL,
+    RABBITMQ_ROLL_NUMBERS,
+)
 from database.operations import get_exam_codes_from_database, save_to_database
 from scrapers.resultNotificationScraper import refresh_notifications
 from scrapers.resultScraper import ResultScraper
@@ -88,12 +93,13 @@ async def consume_messages():
                             body = message.body.decode()
                             # Remove the roll number from Redis after successful processing
                             if redisConnection.client:
-                                redisConnection.client.srem(
-                                    "rabbitmq_roll_numbers", body
-                                )
+                                print(body)
+                                redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
                                 rabbitmq_logger.info(
                                     f"Removed roll number {body} from Redis."
                                 )
+                            else:
+                                rabbitmq_logger.warning("Redis is not found")
 
                             if body == NOTIFICATIONS_REDIS_KEY:
                                 await refresh_notifications()
