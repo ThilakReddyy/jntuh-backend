@@ -8,6 +8,7 @@ from config.settings import (
     NOTIFICATIONS_REDIS_KEY,
 )
 from database.operations import save_exam_codes
+from subscriptions.send_notification import broadcast_all
 from utils.logger import logger
 
 
@@ -220,6 +221,9 @@ async def refresh_notifications():
             )
         results = get_exam_codes(results)
 
-        await save_exam_codes(results)
+        new_exams = await save_exam_codes(results)
+        if new_exams:
+            for new_exam in new_exams:
+                await broadcast_all(new_exam["title"])
     except Exception as e:
         logger.info(f"Error while fetching notifications:{e}")

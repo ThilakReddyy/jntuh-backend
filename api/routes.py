@@ -108,7 +108,7 @@ def create_routes(app: FastAPI):
         year: str = "",
         title: str = "",
     ):
-        return await notification(app, page, regulation, degree, year, title)
+        return await notification(page, regulation, degree, year, title)
 
     @router.get(
         "/api/refreshnotifications",

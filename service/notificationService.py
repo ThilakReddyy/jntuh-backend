@@ -6,9 +6,7 @@ from database.operations import get_notifications
 from messaging.publisher import publish_message
 
 
-async def notification(
-    app: FastAPI, page: int, regulation: str, degree: str, year: str, title: str
-):
+async def notification(page: int, regulation: str, degree: str, year: str, title: str):
     """Get Notifications"""
     try:
         key = NOTIFICATIONS_REDIS_KEY + str(page) + regulation + degree + year + title

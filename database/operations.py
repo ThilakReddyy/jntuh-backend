@@ -121,6 +121,7 @@ async def save_exam_codes(results):
             database_logger.info(f"Inserted {inserted_records} new records")
         else:
             database_logger.info("No new records to insert")
+        return new_exams
     except Exception as e:
         database_logger.error(f"Database error while inserting exam_codes: {e}")
 

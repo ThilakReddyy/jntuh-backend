@@ -58,6 +58,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # If testing locally
+        "http://localhost:3001",  # If testing locally
         "https://jntuhresults.dhethi.com",
         "https://jntuhresults.vercel.app",
     ],  # Allows all origins (Use specific domains in production)
