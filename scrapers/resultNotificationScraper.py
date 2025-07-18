@@ -153,8 +153,11 @@ def format_dates(results):
 
     for result in results:
         try:
+            if result["date"] == "June-202518-JULY-2025":
+                result["date"] = "18-JULY-2025"
             if result["date"] == "21-AUGUST-2023":
                 result["releaseDate"] = "2024-08-21"
+
             else:
                 day, month_abbr, year = result["date"].split("-")
                 month_abbr = month_abbr[:3].upper()  # Normalize month abbreviation
@@ -225,5 +228,6 @@ async def refresh_notifications():
         if new_exams:
             for new_exam in new_exams:
                 await broadcast_all(new_exam["title"])
+
     except Exception as e:
         logger.info(f"Error while fetching notifications:{e}")
