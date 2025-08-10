@@ -157,6 +157,8 @@ def format_dates(results):
                 result["date"] = "18-JULY-2025"
             if result["date"] == "21-AUGUST-2023":
                 result["releaseDate"] = "2024-08-21"
+            if result["date"] == "June/July-202507-AUGUST-2025":
+                result["date"] = "07-AUG-2025"
 
             else:
                 day, month_abbr, year = result["date"].split("-")

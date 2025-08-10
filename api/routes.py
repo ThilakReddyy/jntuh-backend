@@ -1,12 +1,6 @@
-import json
-from typing import Any
 from fastapi import APIRouter, FastAPI, Depends
 from fastapi.responses import RedirectResponse
-from prisma import Json
-from prisma.types import AnonPushSubscriptionUpdateInput
-from pydantic import BaseModel
 
-from config.connection import prismaConnection
 from database.models import PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
