@@ -1,4 +1,5 @@
 import aio_pika
+import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -9,7 +10,7 @@ from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
 from utils.logger import logger
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 
 @asynccontextmanager
@@ -28,7 +29,15 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down RabbitMQ Consumer...")
         # consumer_task.cancel()
     finally:
-        await app.state.rabbitmq_connection.close()
+        if hasattr(app.state, "rabbitmq_connection"):
+            await app.state.rabbitmq_connection.close()
+
+        # Disconnect Prisma
+        await prismaConnection.disconnect()
+
+        # Close Redis
+        if hasattr(app.state, "redis"):
+            await app.state.redis.close()
 
 
 def custom_openapi():
@@ -67,7 +76,13 @@ app.add_middleware(
 )
 
 # Initialize Prometheus instrumentator
-instrumentator = Instrumentator()
+instrumentator = (
+    Instrumentator()
+    .add(metrics.request_size())
+    .add(metrics.response_size())
+    .add(metrics.latency())
+    .add(metrics.requests())
+)
 
 # Automatically instrument the FastAPI app to expose Prometheus metrics
 # Exposing metrics at /metrics
@@ -76,11 +91,14 @@ instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 @app.middleware("http")
 async def log_request(request, call_next):
-    host = request.headers.get("host")
-    logger.info(f"Request from {host}: {request.method} {request.url.path}")
-
-    # Process the request and continue
+    start = time.perf_counter()
     response = await call_next(request)
+    duration = (time.perf_counter() - start) * 1000
+    logger.info(
+        f"{request.client.host} {request.method} {request.url.path} "
+        f"→ {response.status_code} [{duration:.2f} ms]"
+    )
+
     return response
 
 
