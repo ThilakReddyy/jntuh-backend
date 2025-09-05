@@ -43,7 +43,7 @@ async def fetch_class_results(app: FastAPI, roll_number: str):
     tasks = [fetch_single(suffix) for suffix in all_suffixes]
     results = await asyncio.gather(*tasks)
 
-    if roll_number[4] != "5" and roll_number[5] != "A":
+    if roll_number[4] != "5" and roll_number[5] == "A":
         first_two = str(int(roll_number[0:2]) + 1).zfill(2)
         roll_number = first_two + roll_number[2:4] + "5" + roll_number[5:8]
         tasks = [fetch_single(suffix) for suffix in numeric_suffixes]
