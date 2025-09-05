@@ -47,6 +47,9 @@ model mark {
   rcrv          Boolean
 
   @@unique([studentId, semesterCode, examCode, subjectId, rcrv])
+  @@index([studentId, rcrv])
+  @@index([semesterCode, examCode])
+  @@index([examCode, rcrv])
 }
 
 model examcodes {
@@ -62,6 +65,8 @@ model examcodes {
   date         String
 
   @@unique([examCode, rcrv, date])
+  @@index([degree, regulation])
+  @@index([releaseDate])
 }
 
 model AnonPushSubscription {
@@ -71,5 +76,50 @@ model AnonPushSubscription {
   subscription String?  @db.Text
   createdAt    DateTime @default(now())
 
+  @@index([rollNumber])
   @@map("anon_push_subscriptions")
+}
+
+model Job {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        JobType
+  company     String
+  isRemote    Boolean
+  experience  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  locations JobOnLocation[]
+
+  @@map("job")
+}
+
+model JobLocation {
+  id           String          @id @default(uuid())
+  locationName String
+  jobs         JobOnLocation[]
+
+  createdAt DateTime @default(now())
+
+  @@map("jobLocations")
+}
+
+model JobOnLocation {
+  id         String      @id @default(uuid())
+  jobId      String
+  locationId String
+  job        Job         @relation(fields: [jobId], references: [id])
+  location   JobLocation @relation(fields: [locationId], references: [id])
+  createdAt  DateTime    @default(now())
+
+  @@unique([jobId, locationId])
+  @@map("job_on_location")
+}
+
+enum JobType {
+  INTERN
+  FULL_TIME
+  PART_TIME
 }

@@ -32,7 +32,7 @@ async def save_details(details):
 async def save_subject_and_marks(rollNumber, result):
     try:
         student = await prismaConnection.prisma.student.find_unique(
-            where={"rollNumber": rollNumber}
+            where={"rollNumber": rollNumber},
         )
         if not student:
             database_logger.error(
@@ -45,6 +45,7 @@ async def save_subject_and_marks(rollNumber, result):
         semester_code = result["semesterCode"]
         rcrv = result["rcrv"]
         subjects = result["subjects"]
+
         for subject in subjects:
             subject_record = await prismaConnection.prisma.subject.upsert(
                 where={"subjectCode": subject["subjectCode"]},
