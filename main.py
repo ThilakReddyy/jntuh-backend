@@ -76,13 +76,7 @@ app.add_middleware(
 )
 
 # Initialize Prometheus instrumentator
-instrumentator = (
-    Instrumentator()
-    .add(metrics.request_size())
-    .add(metrics.response_size())
-    .add(metrics.latency())
-    .add(metrics.requests())
-)
+instrumentator = Instrumentator()
 
 # Automatically instrument the FastAPI app to expose Prometheus metrics
 # Exposing metrics at /metrics
