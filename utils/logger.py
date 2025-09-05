@@ -36,6 +36,7 @@ rabbitmq_logger = logging.getLogger("rabbitmq")
 database_logger = logging.getLogger("database")
 redis_logger = logging.getLogger("redis")
 scraping_logger = logging.getLogger("scraping")
+telegram_logger = logging.getLogger("telegram")
 
 
 def add_file_handler(logger, filename):
@@ -49,6 +50,7 @@ add_file_handler(rabbitmq_logger, "rabbitmq.log")
 add_file_handler(database_logger, "database.log")
 add_file_handler(redis_logger, "redis.log")
 add_file_handler(scraping_logger, "scraper.log")
+add_file_handler(telegram_logger, "telegram.log")
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.ERROR)

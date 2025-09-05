@@ -1,5 +1,11 @@
 from fastapi import HTTPException, Query, status
 
+from config.settings import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
+from utils.logger import telegram_logger
+
+
+import requests
+
 
 gradestogpa = {
     "O": 10,
@@ -145,3 +151,45 @@ def get_credit_regulation_details(roll_number: str):
         return None  # Unsupported regulation
 
     return credit_regulation_details["btech"][regulation_key][entry_type]
+
+
+def send_telegram_notification(data):
+    if len(data) != 0:
+        for item in data:
+            message = "<b>🚨 Results have been Released! 🚨</b>\n\n"
+
+            second_link = "http://202.63.105.184/results/" + "/".join(
+                item["link"].split("/")[3:]
+            )
+
+            message += f"<b>🎓 {item['title']}</b>\n\n"
+            message += (
+                f'<b>🔗 Result Link 1:</b> <a href="{item["link"]}">Click Here</a>\n'
+            )
+            message += (
+                f'<b>🔗 Result Link 2:</b> <a href="{second_link}">Click Here</a>\n\n'
+            )
+            message += f"<b>📅 Released Date:</b> {item['releaseDate']}\n\n"
+
+            message += (
+                "💌 <b>Questions or concerns?</b> Reach out to me:\n"
+                "- Telegram: @thilak_reddy \n"
+                "- Instagram:<a href='https://www.instagram.com/__thilak_reddy__/'>@__thilak_reddy__</a>  \n"
+                '- Email: <a href="mailto:thilakreddypothuganti@gmail.com">thilakreddypothuganti@gmail.com</a>\n\n'
+                "🌐 <b>More info:</b> <a href='https://jntuhresults.vercel.app/notifications'>jntuhresults.vercel.app</a>"
+            )
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            payload = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "HTML",
+            }
+
+            headers = {"Content-Type": "application/json"}
+
+            response = requests.post(url, json=payload, headers=headers)
+            if response.status_code == 200:
+                telegram_logger.info("Telegram Notification has been Sent")
+            else:
+                telegram_logger.error("Telegram Notification has been failed to send")
+                print("Failed to sent")

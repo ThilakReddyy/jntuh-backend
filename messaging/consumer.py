@@ -93,7 +93,6 @@ async def consume_messages():
                             body = message.body.decode()
                             # Remove the roll number from Redis after successful processing
                             if redisConnection.client:
-                                print(body)
                                 redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
                                 rabbitmq_logger.info(
                                     f"Removed roll number {body} from Redis."

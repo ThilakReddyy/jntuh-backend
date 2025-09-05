@@ -13,6 +13,8 @@ required_env_vars = [
     "REDIS_URL",
     "VAPID_PUBLIC_KEY",
     "VAPID_PRIVATE_KEY",
+    "TELEGRAM_TOKEN",
+    "TELEGRAM_CHAT_ID",
 ]
 
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -27,6 +29,8 @@ QUEUE_NAME = os.getenv("QUEUE_NAME")
 REDIS_URL = os.getenv("REDIS_URL")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 NOTIFICATIONS_EXPIRY_TIME = 1800
 EXPIRY_TIME = 600
