@@ -81,14 +81,14 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getClassResults",
-        summary="Get Result Contrast ",
-        description="Retrives difference between two students marks",
+        summary="Get Class Results ",
+        description="Retrives the results of the class",
         tags=["Results"],
     )
     async def get_class_result(
-        roll_number: str = Depends(validateRollNo),
+        roll_number: str = Depends(validateRollNo), type="academicresult"
     ):
-        return await fetch_class_results(app, roll_number)
+        return await fetch_class_results(app, roll_number, type)
 
     @router.get(
         "/api/hardRefresh",

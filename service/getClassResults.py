@@ -5,16 +5,18 @@ from fastapi import FastAPI
 from config.redisConnection import redisConnection
 from utils.helpers import isbpharmacyr22
 from database.models import (
+    studentAllResultsModel,
+    studentBacklogs,
     studentDetailsModel,
     studentResultsModel,
 )
 from database.operations import get_details
 
 
-async def fetch_class_results(app: FastAPI, roll_number: str):
+async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
     """Fetch student details and results from the database."""
 
-    roll_results_key = f"{roll_number[0:8]}Results"
+    roll_results_key = f"{roll_number[0:8]}Results+{type}"
     if redisConnection.client:
         cached_data = redisConnection.client.get(roll_results_key)
         if cached_data:
@@ -27,10 +29,21 @@ async def fetch_class_results(app: FastAPI, roll_number: str):
         response = await get_details(roll)
         if response:
             student, marks = response
-            return {
-                "details": studentDetailsModel(student),
-                "results": studentResultsModel(marks, is_bpharmacy),
-            }
+            if type == "academicresult":
+                return {
+                    "details": studentDetailsModel(student),
+                    "results": studentResultsModel(marks, is_bpharmacy),
+                }
+            elif type == "allresult":
+                return {
+                    "details": studentDetailsModel(student),
+                    "results": studentAllResultsModel(marks),
+                }
+            elif type == "backlog":
+                return {
+                    "details": studentDetailsModel(student),
+                    "results": studentBacklogs(marks, is_bpharmacy),
+                }
 
     numeric_suffixes = [str(i).zfill(2) for i in range(1, 100)]
 
@@ -51,4 +64,9 @@ async def fetch_class_results(app: FastAPI, roll_number: str):
         results.extend(lateral_results)
 
     responses = [r for r in results if r is not None]
+    if redisConnection.client:
+        redisConnection.client.set(
+            roll_results_key, json.dumps(responses), ex=600
+        )  # 10 minutes TTL
+
     return responses
