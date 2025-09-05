@@ -3,6 +3,7 @@ import json
 import string
 from fastapi import FastAPI
 from config.redisConnection import redisConnection
+from config.settings import QUEUE_NAME
 from utils.helpers import isbpharmacyr22
 from database.models import (
     studentAllResultsModel,
@@ -11,10 +12,16 @@ from database.models import (
     studentResultsModel,
 )
 from database.operations import get_details
+from config.settings import RABBITMQ_100_MAX_MESSAGES
 
 
 async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
     """Fetch student details and results from the database."""
+    async with app.state.rabbitmq_connection.channel() as channel:
+        queue = await channel.declare_queue(QUEUE_NAME, durable=True)
+        message_count = queue.declaration_result.message_count
+        if message_count > RABBITMQ_100_MAX_MESSAGES:
+            return []
 
     roll_results_key = f"{roll_number[0:8]}Results+{type}"
     if redisConnection.client:
