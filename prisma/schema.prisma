@@ -51,6 +51,7 @@ model mark {
   @@index([studentId, rcrv])
   @@index([semesterCode, examCode])
   @@index([examCode, rcrv])
+  @@index([semesterCode, examCode, rcrv, graceMarks])
 }
 
 model examcodes {
