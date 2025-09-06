@@ -29,7 +29,7 @@ async def save_details(details):
         database_logger.error(f"Database error while inserting student data: {e}")
 
 
-async def save_subject_and_marks(rollNumber, result):
+async def save_subject_and_marks(rollNumber, result, graceMarks=False):
     try:
         student = await prismaConnection.prisma.student.find_unique(
             where={"rollNumber": rollNumber},
@@ -60,12 +60,13 @@ async def save_subject_and_marks(rollNumber, result):
             subject_id = subject_record.id
             await prismaConnection.prisma.mark.upsert(
                 where={
-                    "studentId_semesterCode_examCode_subjectId_rcrv": {
+                    "studentId_semesterCode_examCode_subjectId_rcrv_graceMarks": {
                         "studentId": student_id,
                         "semesterCode": semester_code,
                         "examCode": exam_code,
                         "subjectId": subject_id,
                         "rcrv": rcrv,
+                        "graceMarks": graceMarks,
                     }
                 },
                 data={
