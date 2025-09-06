@@ -12,7 +12,7 @@ from database.models import (
     studentResultsModel,
 )
 from database.operations import get_details
-from config.settings import RABBITMQ_100_MAX_MESSAGES
+from config.settings import RABBITMQ_CLASS_MAX_MESSAGES
 
 
 async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
@@ -20,8 +20,11 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
     async with app.state.rabbitmq_connection.channel() as channel:
         queue = await channel.declare_queue(QUEUE_NAME, durable=True)
         message_count = queue.declaration_result.message_count
-        if message_count > RABBITMQ_100_MAX_MESSAGES:
-            return []
+        if message_count > RABBITMQ_CLASS_MAX_MESSAGES:
+            return {
+                "status": "failure",
+                "message": "Server Load is High. Please Try again later!!",
+            }
 
     roll_results_key = f"{roll_number[0:8]}Results+{type}"
     if redisConnection.client:
