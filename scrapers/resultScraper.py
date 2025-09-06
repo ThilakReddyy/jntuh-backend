@@ -291,7 +291,7 @@ class ResultScraper:
                 return None
             if retries:
                 scraping_logger.info(
-                    f"Successfully extracted results fo {self.roll_number} in {retries+1} attempts"
+                    f"Successfully extracted results fo {self.roll_number} in {retries + 1} attempts"
                 )
 
             if bool(self.results["details"]):

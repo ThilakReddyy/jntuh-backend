@@ -62,7 +62,13 @@ def studentAllResultsModel(
         semester_results = final_result.setdefault(
             result.semesterCode, {"semester": result.semesterCode, "exams": {}}
         )
-        exam_code = f"{result.examCode}[RCRV]" if result.rcrv else result.examCode
+
+        exam_code = result.examCode
+
+        if result.rcrv:
+            exam_code = f"{exam_code}[RCRV]"
+        elif result.graceMarks:
+            exam_code = f"{exam_code}[Grace]"
         exam_data = semester_results["exams"].setdefault(
             exam_code,
             {
