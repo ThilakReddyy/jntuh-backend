@@ -68,6 +68,7 @@ def studentAllResultsModel(
             {
                 "examCode": exam_code,
                 "rcrv": result.rcrv,
+                "graceMarks": result.graceMarks,
                 "subjects": [],
             },
         )
