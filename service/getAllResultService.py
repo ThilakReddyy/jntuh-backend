@@ -27,8 +27,6 @@ async def fetch_all_results(app: FastAPI, roll_number: str):
         if redisConnection.client:
             redisConnection.client.set(roll_all_key, json.dumps(result), ex=EXPIRY_TIME)
 
-        # await publish_message(app, roll_number)
-
         return result
 
     return await publish_message(app, roll_number)

@@ -2,7 +2,6 @@ from datetime import datetime
 import json
 
 from prisma.types import examcodesWhereInput
-from redis.client import PubSub
 from config.connection import prismaConnection
 from database.models import PushSub
 from utils.logger import database_logger
@@ -243,6 +242,20 @@ async def get_exam_codes(degree, regulation):
         examCodes[examCode].sort()
 
     return examCodes
+
+
+async def check_4_2_semester(rollNumber: str):
+    student = await prismaConnection.prisma.student.find_unique(
+        where={"rollNumber": rollNumber},
+    )
+    if student:
+        marks = await prismaConnection.prisma.mark.find_first(
+            where={"studentId": student.id, "semesterCode": "4-2"},
+            include={"subject": True},
+        )
+
+        return marks
+    return None
 
 
 async def get_subscription_by_anon_key(anon_key: str):

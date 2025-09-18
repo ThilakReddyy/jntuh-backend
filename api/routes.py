@@ -11,6 +11,7 @@ from service.getResultsService import fetch_results
 from service.hardrefresh import fetch_results_using_hard_refresh
 from service.notificationService import notification, refreshNotification
 from service.subscriptionService import save_subscription
+from service import grace_marks_service
 from utils.helpers import validateRollNo, validateconstrastRollNos
 
 
@@ -78,6 +79,28 @@ def create_routes(app: FastAPI):
         roll_nos: list[str] = Depends(validateconstrastRollNos),
     ):
         return await fetch_result_contrast(app, roll_nos[0], roll_nos[1])
+
+    @router.get(
+        "/api/grace-marks/eligibility",
+        summary="Check grace marks eligibility",
+        description="API to check whether a student is eligible for grace marks",
+        tags=["Results"],
+    )
+    async def check_grace_marks_eligibility(
+        roll_no: str = Depends(validateRollNo),
+    ):
+        return await grace_marks_service.check_eligibility(app, roll_no)
+
+    @router.get(
+        "/api/grace-marks/proof",
+        summary="Get grace marks proof",
+        description="API to fetch or submit proof related to grace marks",
+        tags=["Results"],
+    )
+    async def get_grace_marks_proof(
+        roll_no: str = Depends(validateRollNo),
+    ):
+        return await grace_marks_service.get_proof(app, roll_no)
 
     @router.get(
         "/api/getClassResults",
