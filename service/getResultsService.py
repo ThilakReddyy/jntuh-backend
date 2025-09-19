@@ -1,5 +1,6 @@
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
 from config.redisConnection import redisConnection
 from utils.helpers import isbpharmacyr22
 from utils.logger import redis_logger
@@ -38,6 +39,6 @@ async def fetch_results(app: FastAPI, roll_number: str):
 
         await publish_message(app, roll_number)
 
-        return result
+        return JSONResponse(status_code=status.HTTP_200_OK, content=result)
 
     return await publish_message(app, roll_number)

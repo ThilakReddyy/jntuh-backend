@@ -50,10 +50,13 @@ async def publish_message(
             message_count = queue.declaration_result.message_count
             if message_count > RABBITMQ_MAX_MESSAGES:
                 rabbitmq_logger.warning("Server had execced the threshold level")
-                return {
-                    "status": "failure",
-                    "message": "Server cannot handle the requests currently, please try again later",
-                }
+                return JSONResponse(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    content={
+                        "status": "failure",
+                        "message": "Server cannot handle the requests currently, please try again later",
+                    },
+                )
 
             await channel.default_exchange.publish(
                 aio_pika.Message(body=rollNo.encode()),
@@ -63,11 +66,12 @@ async def publish_message(
         if rollNo == NOTIFICATIONS_REDIS_KEY:
             return {"status": "success", "message": "Notifications are been fetched"}
 
-        # Add roll Number to the rabbitmq Roll Numbers
         if redisConnection.client:
-            redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo)
-            redisConnection.client.expire(RABBITMQ_ROLL_NUMBERS, 3600)
-
+            if not redisConnection.client.exists(RABBITMQ_ROLL_NUMBERS):
+                redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo.encode())
+                redisConnection.client.expire(RABBITMQ_ROLL_NUMBERS, 3600)
+            else:
+                redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo.encode())
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content={
