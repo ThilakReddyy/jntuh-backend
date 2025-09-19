@@ -1,6 +1,8 @@
 from datetime import datetime
 import json
 
+import time
+
 from prisma.types import examcodesWhereInput
 from config.connection import prismaConnection
 from database.models import PushSub
@@ -171,6 +173,29 @@ async def get_details(roll_number: str):
         )
         return [student, marks]
     return None
+
+
+async def get_students_details(rollNumber: str):
+    students = await prismaConnection.prisma.student.find_many(
+        where={"rollNumber": {"startswith": rollNumber}},  # lowercase 'startswith'
+        order=[{"rollNumber": "asc"}],
+        include={
+            "marks": {  # assuming 'marks' is the relation field in Student model
+                "include": {"subject": True},
+                "order_by": [
+                    {"semesterCode": "asc"},
+                    {"examCode": "asc"},
+                    {"rcrv": "asc"},
+                    {"graceMarks": "asc"},
+                ],
+            }
+        },
+    )
+
+    if not students:
+        return None
+
+    return students
 
 
 async def get_subscription_roll_number(roll_number: str):
