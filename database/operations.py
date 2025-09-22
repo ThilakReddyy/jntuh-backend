@@ -175,12 +175,17 @@ async def get_details(roll_number: str):
     return None
 
 
-async def get_students_details(rollNumber: str):
+async def get_students_details(rollNumber: str, roll_number2: str):
     students = await prismaConnection.prisma.student.find_many(
-        where={"rollNumber": {"startswith": rollNumber}},  # lowercase 'startswith'
+        where={
+            "OR": [
+                {"rollNumber": {"startswith": rollNumber}},
+                {"rollNumber": {"startswith": roll_number2}},
+            ]
+        },
         order=[{"rollNumber": "asc"}],
         include={
-            "marks": {  # assuming 'marks' is the relation field in Student model
+            "marks": {
                 "include": {"subject": True},
                 "order_by": [
                     {"semesterCode": "asc"},
