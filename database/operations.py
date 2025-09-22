@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 
-import time
+from collections import defaultdict
 
 from prisma.types import examcodesWhereInput
 from config.connection import prismaConnection
@@ -184,21 +184,31 @@ async def get_students_details(rollNumber: str, roll_number2: str):
             ]
         },
         order=[{"rollNumber": "asc"}],
-        include={
-            "marks": {
-                "include": {"subject": True},
-                "order_by": [
-                    {"semesterCode": "asc"},
-                    {"examCode": "asc"},
-                    {"rcrv": "asc"},
-                    {"graceMarks": "asc"},
-                ],
-            }
-        },
     )
 
     if not students:
         return None
+
+    student_ids = [s.id for s in students]
+
+    marks = await prismaConnection.prisma.mark.find_many(
+        where={"studentId": {"in": student_ids}},
+        order=[
+            {"studentId": "asc"},
+            {"semesterCode": "asc"},
+            {"examCode": "asc"},
+            {"rcrv": "asc"},
+            {"graceMarks": "asc"},
+        ],
+        include={"subject": True},
+    )
+
+    marks_by_student = defaultdict(list)
+    for mark in marks:
+        marks_by_student[mark.studentId].append(mark)
+
+    for student in students:
+        student.marks = marks_by_student.get(student.id, [])
 
     return students
 
