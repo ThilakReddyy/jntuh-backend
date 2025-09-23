@@ -31,19 +31,6 @@ async def publish_message(
                     },
                 )
 
-            # Check if rollNo is already in Redis
-            if redisConnection.client.sismember(RABBITMQ_ROLL_NUMBERS, rollNo):
-                rabbitmq_logger.info(
-                    f"Roll number {rollNo} already exists in queue. Skipping..."
-                )
-                return JSONResponse(
-                    status_code=status.HTTP_409_CONFLICT,
-                    content={
-                        "status": "failure",
-                        "message": "This roll number is already in the queue.",
-                    },
-                )
-
         async with app.state.rabbitmq_connection.channel() as channel:
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
 
@@ -66,12 +53,6 @@ async def publish_message(
         if rollNo == NOTIFICATIONS_REDIS_KEY:
             return {"status": "success", "message": "Notifications are been fetched"}
 
-        if redisConnection.client:
-            if not redisConnection.client.exists(RABBITMQ_ROLL_NUMBERS):
-                redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo.encode())
-                redisConnection.client.expire(RABBITMQ_ROLL_NUMBERS, 3600)
-            else:
-                redisConnection.client.sadd(RABBITMQ_ROLL_NUMBERS, rollNo.encode())
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content={
