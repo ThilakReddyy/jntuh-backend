@@ -6,7 +6,6 @@ from config.settings import (
     NOTIFICATIONS_REDIS_KEY,
     QUEUE_NAME,
     RABBITMQ_MAX_MESSAGES,
-    RABBITMQ_ROLL_NUMBERS,
 )
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
