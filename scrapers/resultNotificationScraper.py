@@ -104,7 +104,7 @@ def parse_results(tables):
     results = []
 
     i = 0
-    for table in tables:
+    for table in tables[:5]:
         for row in table.find_all("tr"):
             try:
                 result_link = row.find("a")["href"]
