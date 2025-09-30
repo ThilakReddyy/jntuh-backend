@@ -2,6 +2,7 @@ from typing import Any, List, TypedDict
 from prisma.models import student, mark
 from pydantic import BaseModel
 
+from config.branchDetails import get_branch_name
 from config.settings import SEMESTERS
 from utils.helpers import getGradeValue, isGreat
 
@@ -11,6 +12,7 @@ class StudentDetails(TypedDict):
     rollNumber: str
     collegeCode: str
     fatherName: str
+    branch: str
 
 
 class PushSub(BaseModel):
@@ -25,6 +27,7 @@ def studentDetailsModel(details: student) -> StudentDetails:
         "rollNumber": details.rollNumber,
         "collegeCode": details.collegeCode,
         "fatherName": details.fatherName,
+        "branch": get_branch_name(details.rollNumber),
     }
 
 
