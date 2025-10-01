@@ -8,7 +8,6 @@ from config.settings import (
     NOTIFICATIONS_REDIS_KEY,
 )
 from database.operations import save_exam_codes
-from subscriptions.send_notification import broadcast_all
 from utils.helpers import send_telegram_notification
 from utils.logger import logger
 

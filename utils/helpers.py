@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import HTTPException, Query, status
 
 from config.settings import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
@@ -31,6 +32,10 @@ gradestogpabppharamcyr22 = {
     "-": 0,
     "P": 0,
 }
+
+
+def format_date(date: datetime) -> str:
+    return date.strftime("%Y-%m-%d")
 
 
 def getGradeValue(grade, bpharmacyr22):

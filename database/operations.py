@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 from collections import defaultdict
@@ -6,6 +6,7 @@ from collections import defaultdict
 from prisma.types import examcodesWhereInput
 from config.connection import prismaConnection
 from database.models import PushSub
+from utils.helpers import format_date
 from utils.logger import database_logger
 
 
@@ -322,3 +323,29 @@ async def save_subscription_details(data: PushSub):
             },
         },
     )
+
+
+async def get_latest_notifications():
+    today = datetime.utcnow()
+    two_weeks_ago = today - timedelta(days=14)
+
+    exams = await prismaConnection.prisma.examcodes.find_many(
+        where={
+            "releaseDate": {
+                "gte": format_date(two_weeks_ago),
+                "lte": format_date(today),
+            }
+        },
+        order={"releaseDate": "asc"},
+    )
+    results = []
+    for notification in exams:
+        results.append(
+            {
+                "title": notification.title,
+                "releaseDate": notification.releaseDate,
+                "date": notification.date,
+                "link": notification.link,
+            }
+        )
+    return results

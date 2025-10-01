@@ -9,7 +9,11 @@ from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
 from service.hardrefresh import fetch_results_using_hard_refresh
-from service.notificationService import notification, refreshNotification
+from service.notificationService import (
+    getLatestNotifications,
+    notification,
+    refreshNotification,
+)
 from service.subscriptionService import save_subscription
 from service import grace_marks_service
 from utils.helpers import validateRollNo, validateconstrastRollNos
@@ -148,6 +152,15 @@ def create_routes(app: FastAPI):
     )
     async def refresh_notifications():
         return await refreshNotification(app)
+
+    @router.get(
+        "/api/getlatestnotifications",
+        summary="Get Latest notifications",
+        description="Retrieves latest  notifications.",
+        tags=["Notifications"],
+    )
+    async def get_latest_notifications():
+        return await getLatestNotifications()
 
     @router.post(
         "/save-subscription",
