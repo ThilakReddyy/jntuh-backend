@@ -172,7 +172,7 @@ def create_routes(app: FastAPI):
     async def save_subscription_end_point(data: PushSub):
         return await save_subscription(data)
 
-    @router.get("/health")
+    @router.get("api/health")
     async def get_health():
         return JSONResponse(
             status_code=status.HTTP_200_OK,
