@@ -336,7 +336,7 @@ async def get_latest_notifications():
                 "lte": format_date(today),
             }
         },
-        order={"releaseDate": "asc"},
+        order={"releaseDate": "desc"},
     )
     results = []
     for notification in exams:
