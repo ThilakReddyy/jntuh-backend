@@ -327,7 +327,7 @@ async def save_subscription_details(data: PushSub):
 
 async def get_latest_notifications():
     today = datetime.utcnow()
-    two_weeks_ago = today - timedelta(days=14)
+    two_weeks_ago = today - timedelta(days=7)
 
     exams = await prismaConnection.prisma.examcodes.find_many(
         where={
