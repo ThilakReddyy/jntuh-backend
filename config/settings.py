@@ -42,5 +42,8 @@ SEMESTERS = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2"]
 RABBITMQ_MAX_MESSAGES = 4000
 RABBITMQ_CLASS_MAX_MESSAGES = 10
 RABBITMQ_ROLL_NUMBERS = "rabbitmq_roll_numbers"
+RESULTS = "results"
+ALL = "all"
+EXAMS = "exams"
 
 logger.info("All required environment variables are set. Starting application...")

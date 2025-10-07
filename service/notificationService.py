@@ -11,9 +11,17 @@ from database.operations import get_latest_notifications, get_notifications
 from messaging.publisher import publish_message
 
 
-async def notification(page: int, regulation: str, degree: str, year: str, title: str):
+async def notification(
+    page: int, category: str, regulation: str, degree: str, year: str, title: str
+):
     """Get Notifications"""
     try:
+        if category.lower() != "results" and category.lower() != "all":
+            print(category)
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=[],
+            )
         key = NOTIFICATIONS_REDIS_KEY + str(page) + regulation + degree + year + title
         if redisConnection.client:
             cached_data = redisConnection.client.get(key)
@@ -23,10 +31,16 @@ async def notification(page: int, regulation: str, degree: str, year: str, title
         results = await get_notifications(page, regulation, degree, year, title)
         if redisConnection.client:
             redisConnection.client.set(key, json.dumps(results), ex=FIVE_MINUTE_EXPIRY)
-        return results
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=results,
+        )
 
     except Exception:
-        return {"status": "failure", "message": "Unexpected error has occured"}
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"message": "Unexpected Error has occured"},
+        )
 
 
 async def getLatestNotifications():

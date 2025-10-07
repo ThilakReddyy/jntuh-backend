@@ -136,12 +136,13 @@ def create_routes(app: FastAPI):
     )
     async def get_notifications(
         page: int,
+        category: str = "all",
         regulation: str = "",
         degree: str = "",
         year: str = "",
         title: str = "",
     ):
-        return await notification(page, regulation, degree, year, title)
+        return await notification(page, category, regulation, degree, year, title)
 
     @router.get(
         "/api/refreshnotifications",

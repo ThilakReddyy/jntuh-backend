@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from prisma.types import examcodesWhereInput
 from config.connection import prismaConnection
+from config.settings import RESULTS
 from database.models import PushSub
 from utils.helpers import format_date
 from utils.logger import database_logger
@@ -262,6 +263,7 @@ async def get_notifications(
                 "releaseDate": notification.releaseDate,
                 "date": notification.date,
                 "link": notification.link,
+                "category": RESULTS,
             }
         )
     return results
@@ -346,6 +348,7 @@ async def get_latest_notifications():
                 "releaseDate": notification.releaseDate,
                 "date": notification.date,
                 "link": notification.link,
+                "category": "result",
             }
         )
     return results
