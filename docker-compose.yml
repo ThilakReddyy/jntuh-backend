@@ -50,7 +50,7 @@ services:
       - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
 
   app:
-    build: .
+    image: thilakeddy/jntuh-backend:latest
     container_name: fastapiapp
     restart: always
     depends_on:
@@ -58,6 +58,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
