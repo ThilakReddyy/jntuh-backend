@@ -88,7 +88,7 @@ model examcodes {
   releaseDate  String
   date         String
 
-  @@unique([examCode, rcrv, date])
+  @@unique([degree, examCode, rcrv, date])
   @@index([degree, regulation])
   @@index([releaseDate])
 }
