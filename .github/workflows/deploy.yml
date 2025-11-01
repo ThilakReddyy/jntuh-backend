@@ -31,6 +31,14 @@ jobs:
             # Navigate to project directory (create if missing)
             mkdir -p ~/jntuh-backend && cd ~/jntuh-backend
 
+
+            echo "🔹 Logging in to Docker Hub..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            echo "🔹 Pulling latest app image..."
+            docker-compose pull app || true
+
+
             # Ensure clean repo state
             git fetch origin main
             git reset --hard origin/main
