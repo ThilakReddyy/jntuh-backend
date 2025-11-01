@@ -49,28 +49,28 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount Prometheus config file
       - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
 
-  app:
-    build: .
-    container_name: fastapiapp
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
-      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
-      REDIS_URL: redis://redisjntuh:6379/0
-      QUEUE_NAME: default_queue
-
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-
-    entrypoint: ["/app/entrypoint.sh"]
-
+  # app:
+  #   build: .
+  #   container_name: fastapiapp
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
+  #     RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
+  #     REDIS_URL: redis://redisjntuh:6379/0
+  #     QUEUE_NAME: default_queue
+  #
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - .:/app
+  #
+  #   entrypoint: ["/app/entrypoint.sh"]
+  #
   loki:
     image: grafana/loki:latest
     container_name: loki
@@ -92,6 +92,27 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - loki
+
+  # 🔹 Redis Exporter
+  redis_exporter:
+    image: oliver006/redis_exporter
+    container_name: redis_exporter
+    command: --redis.addr=redis://redisjntuh:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:password@postgresdb:5432/jntuh?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - db
+
 volumes:
   postgres_data:
   prometheus_data:
