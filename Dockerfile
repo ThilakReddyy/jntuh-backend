@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
+RUN apk add --no-cache libatomic
+
 EXPOSE 8000
 
 
