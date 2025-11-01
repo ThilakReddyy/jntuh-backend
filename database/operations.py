@@ -266,6 +266,7 @@ async def get_notifications(
                 "category": RESULTS,
             }
         )
+
     return results
 
 
