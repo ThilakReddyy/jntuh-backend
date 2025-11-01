@@ -1,18 +1,20 @@
+
 FROM python:3.11.6-slim
 
 WORKDIR /app
 
-
 COPY requirements.txt .
 
-
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
-
+# Install libatomic for Prisma and Python dependencies
+RUN apt-get update && \
+    apt-get install -y libatomic1 && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN apk add --no-cache libatomic
+
 
 EXPOSE 8000
 

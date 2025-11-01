@@ -49,28 +49,28 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount Prometheus config file
       - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
 
-  # app:
-  #   build: .
-  #   container_name: fastapiapp
-  #   restart: always
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   environment:
-  #     DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
-  #     RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
-  #     REDIS_URL: redis://redisjntuh:6379/0
-  #     QUEUE_NAME: default_queue
-  #
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - .:/app
-  #
-  #   entrypoint: ["/app/entrypoint.sh"]
-  #
+  app:
+    build: .
+    container_name: fastapiapp
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
+      REDIS_URL: redis://redisjntuh:6379/0
+      QUEUE_NAME: default_queue
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+    entrypoint: ["/app/entrypoint.sh"]
+
   loki:
     image: grafana/loki:latest
     container_name: loki
