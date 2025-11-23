@@ -50,7 +50,7 @@ services:
       - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
 
   app:
-    image: thilakeddy/jntuh-backend:latest
+    image: .
     container_name: fastapiapp
     restart: always
     depends_on:

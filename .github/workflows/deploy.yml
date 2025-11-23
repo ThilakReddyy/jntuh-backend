@@ -1,4 +1,4 @@
-name: Build and Deploy FastAPI App to EC2
+name: Deploy to EC2
 
 on:
   push:
@@ -6,24 +6,12 @@ on:
       - main
 
 jobs:
-  build:
-    name: 🏗️ Build and Push Docker Image
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🧾 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: 🔑 Log in to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: 🐳 Build and Push Docker Image
-        run: |
-          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/jntuh-backend
-          IMAGE_TAG=latest
-          docker build -t $IMAGE_NAME:$IMAGE_TAG .
-          docker push $IMAGE_NAME:$IMAGE_TAG
 
       - name: Setup SSH Key
         run: |
@@ -43,16 +31,9 @@ jobs:
             # Navigate to project directory (create if missing)
             mkdir -p ~/jntuh-backend && cd ~/jntuh-backend
 
-
-            echo "🔹 Logging in to Docker Hub..."
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-            echo "🔹 Pulling latest app image..."
-            docker-compose pull app || true
-
             # Ensure clean repo state
-            # git fetch origin main
-            # git reset --hard origin/main
+            git fetch origin main
+            git reset --hard origin/main
 
             # Start or update Docker services
             docker-compose pull  # Fetch updated images without rebuilding everything
