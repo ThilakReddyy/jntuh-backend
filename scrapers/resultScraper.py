@@ -198,7 +198,7 @@ class ResultScraper:
         ):
             print("here")
             self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
-        if grad_year >= 23 or (grad_year == 22 and self.roll_number[4] != "5"):
+        if grad_year >= 23 or (grad_year == 21 and self.roll_number[4] != "5"):
             return "R22"
 
         regulation_map = {"A": "R18", "R": "R17"}
