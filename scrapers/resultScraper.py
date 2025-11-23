@@ -196,9 +196,8 @@ class ResultScraper:
             and grad_year >= 23
             or (grad_year == 22 and self.roll_number[4] != "5")
         ):
-            print("here")
             self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
-        if grad_year >= 23 or (grad_year == 22 and self.roll_number[4] != "5"):
+        if grad_year >= 23 or (grad_year == 21 and self.roll_number[4] != "5"):
             return "R22"
 
         regulation_map = {"A": "R18", "R": "R17"}
@@ -276,7 +275,6 @@ class ResultScraper:
         try:
             await self.scrape_all_results()
             retries = 0
-            scraping_logger.info("one extra line")
             while self.failed_exam_codes and retries < 15:
                 retries += 1
                 failed_codes = list(set(self.failed_exam_codes))
