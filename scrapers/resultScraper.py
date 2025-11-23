@@ -276,8 +276,8 @@ class ResultScraper:
         try:
             await self.scrape_all_results()
             retries = 0
+            scraping_logger.info("one extra line")
             while self.failed_exam_codes and retries < 15:
-                scraping_logger.info("one extra line")
                 retries += 1
                 failed_codes = list(set(self.failed_exam_codes))
                 self.failed_exam_codes = []
