@@ -22,5 +22,7 @@ EXPOSE 8000
 RUN prisma generate
 
 
-CMD sh -c "prisma migrate deploy && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+CMD sh -c "prisma migrate deploy && python main2.py & uvicorn main:app --host 0.0.0.0 --port 8000"
+
 
