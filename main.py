@@ -69,6 +69,7 @@ app.add_middleware(
         "http://localhost:3000",  # If testing locally
         "http://localhost:3001",  # If testing locally
         "https://jntuhresults.dhethi.com",
+        "https://jntuhconnect.dhethi.com",
         "https://jntuhresults.vercel.app",
     ],  # Allows all origins (Use specific domains in production)
     allow_methods=["*"],  # Allows all HTTP methods
