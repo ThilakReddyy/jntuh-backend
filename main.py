@@ -71,6 +71,7 @@ app.add_middleware(
         "https://jntuhresults.dhethi.com",
         "https://jntuhconnect.dhethi.com",
         "https://jntuhresults.vercel.app",
+        "https://dhethi.com",
     ],  # Allows all origins (Use specific domains in production)
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
