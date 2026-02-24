@@ -23,7 +23,7 @@ async def publish_message(
 
             if url == ".":
                 return JSONResponse(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    status_code=status.HTTP_424_FAILED_DEPENDENCY,
                     content={
                         "status": "failure",
                         "message": "JNTUH SERVERS ARE DOWN!!",
