@@ -36,10 +36,12 @@ jobs:
             git reset --hard origin/main
 
             # Start or update Docker services
-            docker-compose pull  # Fetch updated images without rebuilding everything
-            docker-compose down
-            # docker-compose up --no-deps -d --build app
-            docker-compose up -d --build
+            # docker-compose pull  # Fetch updated images without rebuilding everything
+            # docker-compose down
+            # # docker-compose up --no-deps -d --build app
+            # docker-compose up -d --build
+            docker compose build app
+            docker compose up -d --no-deps app
 
             # Cleanup unused Docker resources
             docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
