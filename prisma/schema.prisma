@@ -142,6 +142,27 @@ model JobOnLocation {
   @@map("job_on_location")
 }
 
+model SyllabusNode {
+  id        String   @id @default(uuid())
+  title     String
+  type      NodeType
+  pdfUrl    String?
+  parentId  String?
+  parent    SyllabusNode?  @relation("SyllabusHierarchy", fields: [parentId], references: [id])
+  children  SyllabusNode[] @relation("SyllabusHierarchy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+}
+
+enum NodeType {
+  FOLDER
+  PDF
+}
+
+
 enum JobType {
   INTERN
   FULL_TIME
