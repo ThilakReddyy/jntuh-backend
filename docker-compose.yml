@@ -19,8 +19,17 @@ services:
   redis:
     image: redis:alpine
     container_name: redisjntuh
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+ 
 
   rabbitmq:
     image: rabbitmq:3.13-management
