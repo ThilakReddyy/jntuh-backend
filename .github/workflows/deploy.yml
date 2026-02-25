@@ -40,8 +40,8 @@ jobs:
             # docker-compose down
             # # docker-compose up --no-deps -d --build app
             # docker-compose up -d --build
-            docker compose build app
-            docker compose up -d --no-deps app
+            docker-compose build app
+            docker-compose up -d --no-deps app
 
             # Cleanup unused Docker resources
             docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
