@@ -3,7 +3,7 @@ set -e
 
 # Run Prisma migrations
 prisma generate || true
-prisma db push
+prisma migrate deploy || true
 
 # Start the FastAPI app
 exec "$@"

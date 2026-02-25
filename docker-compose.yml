@@ -61,7 +61,7 @@ services:
   app:
     build: .
     container_name: fastapiapp
-    # restart: always
+    restart: always
     depends_on:
       db:
         condition: service_healthy
