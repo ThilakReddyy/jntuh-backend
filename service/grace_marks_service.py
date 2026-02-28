@@ -1,4 +1,4 @@
-from database.models import studentBacklogs, studentDetailsModel
+from database.models import studentBacklogs
 from database.operations import check_4_2_semester, get_details
 
 
