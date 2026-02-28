@@ -10,7 +10,7 @@ from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
 from utils.logger import logger
-from prometheus_fastapi_instrumentator import Instrumentator, metrics
+from prometheus_fastapi_instrumentator import Instrumentator
 
 
 @asynccontextmanager
