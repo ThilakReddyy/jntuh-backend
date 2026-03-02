@@ -190,18 +190,29 @@ class ResultScraper:
         return degree_map.get(self.roll_number[5])
 
     def _determine_regulation(self):
-        grad_year = int(self.roll_number[:2])
-        if (
-            self.roll_number[5] == "R"
-            and grad_year >= 23
-            or (grad_year == 22 and self.roll_number[4] != "5")
-        ):
-            self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
-        if grad_year >= 23 or (grad_year == 22 and self.roll_number[4] != "5"):
+        roll = self.roll_number
+        grad_year = int(roll[:2])
+        batch_code = roll[4]
+        reg_code = roll[5]
+
+        is_non_lateral = batch_code != "5"
+
+        # R25 condition
+        if grad_year >= 26 or (grad_year == 25 and is_non_lateral):
+            return "R25"
+
+        # R22 condition
+        if grad_year >= 23 or (grad_year == 22 and is_non_lateral):
+            if reg_code == "R":
+                self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
             return "R22"
 
-        regulation_map = {"A": "R18", "R": "R17"}
-        return regulation_map.get(self.roll_number[5], "R19")
+        # Older regulations
+        regulation_map = {
+            "A": "R18",
+            "R": "R17",
+        }
+        return regulation_map.get(reg_code, "R19")
 
     async def scrape_all_results(self, failed_exam_codes=[]):
         tasks = {}
