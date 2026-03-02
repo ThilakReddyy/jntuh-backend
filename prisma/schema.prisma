@@ -43,6 +43,7 @@ model mark {
   student student @relation(fields: [studentId], references: [id])
   subject subject @relation(fields: [subjectId], references: [id])
 
+  @@unique([studentId, semesterCode, examCode, subjectId, rcrv, graceMarks])
   @@index([studentId, rcrv])
   @@index([semesterCode, examCode])
   @@index([examCode, rcrv])
@@ -65,7 +66,6 @@ model examcodes {
   @@index([releaseDate])
 }
 
-
 model AnonPushSubscription {
   id           Int      @id @default(autoincrement())
   anonId       String   @unique @db.Uuid
@@ -78,24 +78,24 @@ model AnonPushSubscription {
 }
 
 model Job {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   title       String
   description String
   type        JobType
   company     String
   isRemote    Boolean
   experience  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   locations   JobOnLocation[]
 
   @@map("job")
 }
 
 model JobLocation {
-  id           String         @id @default(uuid())
+  id           String          @id @default(uuid())
   locationName String
-  createdAt    DateTime       @default(now())
+  createdAt    DateTime        @default(now())
   jobs         JobOnLocation[]
 
   @@map("jobLocations")
