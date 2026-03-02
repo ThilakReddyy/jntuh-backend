@@ -37,7 +37,7 @@ async def publish_message(
             if message_count > RABBITMQ_MAX_MESSAGES:
                 rabbitmq_logger.warning("Server had execced the threshold level")
                 return JSONResponse(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
                         "status": "failure",
                         "message": "Server cannot handle the requests currently, please try again later",
