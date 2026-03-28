@@ -202,7 +202,7 @@ class ResultScraper:
             return "R25"
 
         # R22 condition
-        if grad_year >= 23 or (grad_year == 22 and is_non_lateral):
+        if grad_year >= 22 or (grad_year == 22 and is_non_lateral):
             if reg_code == "R":
                 self.grades_to_gpa = self.grades_to_gpa_bpharmacy_r22
             return "R22"
