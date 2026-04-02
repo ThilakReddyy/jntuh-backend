@@ -36,13 +36,6 @@ SERIES = [
 SAMPLE_rollNumberS = [f"{series}{i:02d}" for series in SERIES for i in range(1, 100)]
 
 
-CONTRAST_PAIRS = [
-    ("20B91A0501", "20B91A0502"),
-    ("19B91A0501", "19B91A0502"),
-    ("21B91A0501", "21B91A0502"),
-    ("20B91A1201", "20B91A1202"),
-]
-
 NOTIFICATION_CATEGORIES = ["all", "results", "exams", "others"]
 REGULATIONS = ["R18", "R22", "R20", "R16"]
 DEGREES = ["btech", "mtech", "mba", "mca"]
@@ -51,10 +44,6 @@ YEARS = ["1", "2", "3", "4"]
 
 def random_roll() -> str:
     return random.choice(SAMPLE_rollNumberS)
-
-
-def random_contrast_pair():
-    return random.choice(CONTRAST_PAIRS)
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +225,6 @@ class HeavyUserTaskSet(SequentialTaskSet):
 
     def on_start(self):
         self.roll = random_roll()
-        pair = random_contrast_pair()
-        self.roll_a, self.roll_b = pair
 
     @task
     def step_health(self):
@@ -284,14 +271,6 @@ class HeavyUserTaskSet(SequentialTaskSet):
         )
 
     @task
-    def step_contrast(self):
-        self.client.get(
-            "/api/getResultContrast",
-            params={"rollNumber1": self.roll_a, "rollNumber2": self.roll_b},
-            name="/api/getResultContrast [heavy]",
-        )
-
-    @task
     def step_class_results(self):
         self.client.get(
             "/api/getClassResults",
@@ -335,17 +314,6 @@ class ResultUser(HttpUser):
     tasks = {ResultTasks: 8, HealthTasks: 2}
 
 
-class GraceMarksUser(HttpUser):
-    """
-    Simulates students specifically checking grace marks eligibility.
-    Lower weight – niche feature.
-    """
-
-    weight = 2
-    wait_time = between(4, 10)
-    tasks = {GraceMarksTasks: 9, HealthTasks: 1}
-
-
 class NotificationUser(HttpUser):
     """
     Simulates users polling for notifications (frontend polling strategy).
@@ -365,38 +333,6 @@ class HeavyUser(HttpUser):
     weight = 1
     wait_time = between(5, 15)
     tasks = [HeavyUserTaskSet]
-
-
-# ---------------------------------------------------------------------------
-# Optional: contrast + hard-refresh as standalone tasks (low frequency)
-# ---------------------------------------------------------------------------
-
-
-class ContrastUser(HttpUser):
-    """
-    Simulates users running result comparisons between two students.
-    """
-
-    weight = 1
-    wait_time = between(10, 20)
-
-    @task
-    def get_contrast(self):
-        roll_a, roll_b = random_contrast_pair()
-        with self.client.get(
-            "/api/getResultContrast",
-            params={"rollNumber": roll_a, "rollNumber2": roll_b},
-            name="/api/getResultContrast",
-            catch_response=True,
-        ) as r:
-            if r.status_code in (200, 404, 422):
-                r.success()
-            else:
-                r.failure(f"Unexpected status {r.status_code}")
-
-    @task
-    def health(self):
-        self.client.get("/api/health", name="/api/health")
 
 
 # ---------------------------------------------------------------------------
