@@ -10,7 +10,6 @@ from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
 from utils.logger import logger
-from prometheus_fastapi_instrumentator import Instrumentator
 
 
 @asynccontextmanager
@@ -53,7 +52,7 @@ def custom_openapi():
             routes=app.routes,
         )
         app.openapi_schema["info"]["x-logo"] = {
-            "url": "https://jntuhresults.vercel.app/_next/image?url=%2Fjntuhresults_md.png&w=256&q=75"
+            "url": "https://jntuhconnect.dhethi.com/_next/image?url=%2Fjntuhresults_md.png&w=256&q=75"
         }
     return app.openapi_schema
 
@@ -66,8 +65,6 @@ app.openapi = custom_openapi
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # If testing locally
-        "http://localhost:3001",  # If testing locally
         "https://jntuhresults.dhethi.com",
         "https://jntuhconnect.dhethi.com",
         "https://jntuhresults.vercel.app",
@@ -78,11 +75,12 @@ app.add_middleware(
 )
 
 # Initialize Prometheus instrumentator
-instrumentator = Instrumentator()
-
-# Automatically instrument the FastAPI app to expose Prometheus metrics
-# Exposing metrics at /metrics
-instrumentator.instrument(app).expose(app, include_in_schema=False)
+# instrumentator = Instrumentator()
+#
+# # Automatically instrument the FastAPI app to expose Prometheus metrics
+# # Exposing metrics at /metrics
+# instrumentator.instrument(app).expose(app, include_in_schema=False)
+#
 
 
 @app.middleware("http")

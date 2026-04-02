@@ -1,22 +1,18 @@
 import logging
 
-import queue
-from logging_loki import LokiQueueHandler
-
-
 # Common log format
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"
 LOG_FORMAT = "%(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-LOKI_ENDPOINT = "http://loki:3100/loki/api/v1/push"
-
-log_queue = queue.Queue(-1)  # -1 for infinite size
-loki_handler = LokiQueueHandler(
-    queue=log_queue,
-    url=LOKI_ENDPOINT,
-    tags={"application": "fastapi"},
-    version="1",
-)
+LOKI_ENDPOINT = "http://localhost:3100/loki/api/v1/push"
+#
+# log_queue = queue.Queue(-1)  # -1 for infinite size
+# loki_handler = LokiQueueHandler(
+#     queue=log_queue,
+#     url=LOKI_ENDPOINT,
+#     tags={"application": "fastapi"},
+#     version="1",
+# )
 
 
 # Main Logger
@@ -27,7 +23,7 @@ logging.basicConfig(
     handlers=[
         logging.FileHandler("app.log"),  # General app logs
         logging.StreamHandler(),  # Print to console
-        loki_handler,
+        # loki_handler,
     ],
 )
 
@@ -43,7 +39,7 @@ def add_file_handler(logger, filename):
     handler = logging.FileHandler(filename)
     handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
     logger.addHandler(handler)
-    logger.addHandler(loki_handler)  # Send component logs to Loki as well
+    # logger.addHandler(loki_handler)  # Send component logs to Loki as well
 
 
 add_file_handler(rabbitmq_logger, "rabbitmq.log")
