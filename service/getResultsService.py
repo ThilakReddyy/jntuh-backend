@@ -2,6 +2,7 @@ import json
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from config.redisConnection import redisConnection
+from scrapers.serverChecker import check_valid_url_in_redis
 from utils.helpers import isbpharmacyr22
 from utils.logger import redis_logger
 from config.settings import EXPIRY_TIME
@@ -29,13 +30,16 @@ async def fetch_results(app: FastAPI, roll_number: str):
             "details": studentDetailsModel(student),
             "results": studentResultsModel(marks, isbpharmacyr22(roll_number)),
         }
-
+        url = "."
         if redisConnection.client:
             redisConnection.client.set(
                 roll_results_key, json.dumps(result), ex=EXPIRY_TIME
             )
+            url = check_valid_url_in_redis()
         else:
             redis_logger.warning(f"Unable to connect to redis {roll_number}")
+
+        result["serverStatus"] = url != "."
 
         await publish_message(app, roll_number)
 
