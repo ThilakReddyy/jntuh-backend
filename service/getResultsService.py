@@ -22,11 +22,12 @@ async def fetch_results(app: FastAPI, roll_number: str):
     url = "."
     if redisConnection.client:
         cached_data = redisConnection.client.get(roll_results_key)
-
         url = check_valid_url_in_redis()
+
         if cached_data:
-            cached_data["serverStatus"] = url != "."
-            return json.loads(cached_data)  # pyright: ignore
+            data = json.loads(cached_data)
+            data["serverStatus"] = url != "."
+            return data
 
     response = await get_details(roll_number)
     if response:
