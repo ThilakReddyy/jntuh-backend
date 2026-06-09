@@ -18,9 +18,14 @@ async def fetch_results(app: FastAPI, roll_number: str):
     """Fetch student details and results from the database."""
 
     roll_results_key = f"{roll_number}Results"
+
+    url = "."
     if redisConnection.client:
         cached_data = redisConnection.client.get(roll_results_key)
+
+        url = check_valid_url_in_redis()
         if cached_data:
+            cached_data["serverStatus"] = url != "."
             return json.loads(cached_data)  # pyright: ignore
 
     response = await get_details(roll_number)
@@ -30,12 +35,10 @@ async def fetch_results(app: FastAPI, roll_number: str):
             "details": studentDetailsModel(student),
             "results": studentResultsModel(marks, isbpharmacyr22(roll_number)),
         }
-        url = "."
         if redisConnection.client:
             redisConnection.client.set(
                 roll_results_key, json.dumps(result), ex=EXPIRY_TIME
             )
-            url = check_valid_url_in_redis()
         else:
             redis_logger.warning(f"Unable to connect to redis {roll_number}")
 
