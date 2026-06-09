@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from api.routes import create_routes
 from config.redisConnection import redisConnection
@@ -75,12 +76,11 @@ app.add_middleware(
 )
 
 # Initialize Prometheus instrumentator
-# instrumentator = Instrumentator()
-#
-# # Automatically instrument the FastAPI app to expose Prometheus metrics
-# # Exposing metrics at /metrics
-# instrumentator.instrument(app).expose(app, include_in_schema=False)
-#
+instrumentator = Instrumentator()
+
+# Automatically instrument the FastAPI app to expose Prometheus metrics
+# Exposing metrics at /metrics
+instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 
 @app.middleware("http")

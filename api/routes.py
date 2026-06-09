@@ -173,6 +173,13 @@ def create_routes(app: FastAPI):
     async def save_subscription_end_point(data: PushSub):
         return await save_subscription(data)
 
+    @router.post(
+        "/job",
+        summary="Job Posting",
+        description="Save the job detail",
+        tags=["Jobs"],
+        include_in_schema=True,
+    )
     @router.get("/api/health")
     async def get_health():
         return JSONResponse(
