@@ -103,7 +103,7 @@ services:
     depends_on:
       - loki
 
-  🔹 Redis Exporter
+  # 🔹 Redis Exporter
   redis_exporter:
     image: oliver006/redis_exporter
     container_name: redis_exporter
