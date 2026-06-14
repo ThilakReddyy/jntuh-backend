@@ -21,12 +21,9 @@ async def lifespan(app: FastAPI):
         await prismaConnection.connect()
         redisConnection.connect()
 
-        # consumer_task = asyncio.create_task(consume_messages(app))
-
         yield
 
-        logger.info("Shutting down RabbitMQ Consumer...")
-        # consumer_task.cancel()
+        logger.info("Shutting down...")
     finally:
         if hasattr(app.state, "rabbitmq_connection"):
             await app.state.rabbitmq_connection.close()
@@ -67,8 +64,8 @@ app.add_middleware(
     allow_origins=[
         "https://jntuhresults.dhethi.com",
         "https://jntuhconnect.dhethi.com",
-        "https://jntuhresults.vercel.app",
         "https://dhethi.com",
+        "http://localhost:3000",
     ],  # Allows all origins (Use specific domains in production)
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
