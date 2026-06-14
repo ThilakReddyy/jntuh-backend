@@ -15,7 +15,7 @@ def send_push_notification(subscription_info, title, body):
                 {
                     "title": title,
                     "body": body,
-                    "url": "https://jntuhresults.vercel.app/academicresult",
+                    "url": "https://jntuhconnect.dhethi.com/academicresult",
                 }
             ),
             vapid_private_key=VAPID_PRIVATE_KEY,
@@ -49,7 +49,7 @@ async def broadcast_all(title: str):
                     send_push_notification,
                     json.loads(record.subscription or ""),
                     f"📢 JNTUH Results Released! {title}",
-                    "Tap to check your result now on jntuhresults.vercel.app",
+                    "Tap to check your result now on jntuhconnect.dhethi.com",
                 )
                 for record in all_subs
             ]

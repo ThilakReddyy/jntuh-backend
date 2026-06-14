@@ -181,7 +181,7 @@ def send_telegram_notification(data):
                 "- Telegram: @thilak_reddy \n"
                 "- Instagram:<a href='https://www.instagram.com/__thilak_reddy__/'>@__thilak_reddy__</a>  \n"
                 '- Email: <a href="mailto:thilakreddypothuganti@gmail.com">thilakreddypothuganti@gmail.com</a>\n\n'
-                "🌐 <b>More info:</b> <a href='https://jntuhresults.vercel.app/notifications'>jntuhresults.vercel.app</a>"
+                "🌐 <b>More info:</b> <a href='https://jntuhconnect.dhethi.com/notifications'>jntuhconnect.dhethi.com</a>"
             )
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             payload = {
