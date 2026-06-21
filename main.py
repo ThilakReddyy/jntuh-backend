@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
+from fastapi_mcp import FastApiMCP
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from api.routes import create_routes
@@ -95,3 +96,29 @@ async def log_request(request, call_next):
 
 routes = create_routes(app)
 app.include_router(routes)
+
+mcp = FastApiMCP(
+    app,
+    name="JNTUH Results MCP",
+    description=(
+        "MCP tools for querying JNTUH student academic data: full attempt history "
+        "(getAllResult) vs the consolidated best-attempt mark sheet "
+        "(getAcademicResult), backlogs, credits-vs-required-credits, two-student "
+        "result contrast, class-wide results, grace-marks eligibility/proof, and "
+        "result notifications. Read-only — destructive endpoints are intentionally "
+        "not exposed."
+    ),
+    include_operations=[
+        "get_all_result",
+        "get_academic_result",
+        "get_backlogs",
+        "get_credits_checker",
+        "get_result_contrast",
+        "check_grace_marks_eligibility",
+        "get_grace_marks_proof",
+        "get_class_results",
+        "get_notifications",
+        "get_latest_notifications",
+    ],
+)
+mcp.mount()

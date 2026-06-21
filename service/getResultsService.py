@@ -15,7 +15,24 @@ from messaging.publisher import publish_message
 
 
 async def fetch_results(app: FastAPI, roll_number: str):
-    """Fetch student details and results from the database."""
+    """Return the CONSOLIDATED final mark sheet for a single student.
+
+    For each subject the highest grade across all attempts (regular, supplementary,
+    RCRV, Grace) is kept — so if a student failed the regular and cleared the
+    supplementary, the supply grade wins. From that best-attempt set the response
+    computes per-semester SGPA, semester credits, semester backlog count, an
+    overall CGPA, total credits, and total backlogs. This is the right call for
+    `What is this student's effective academic standing?`.
+
+    For the raw per-attempt history use `fetch_all_results`; for only the still-
+    failing subjects use `fetch_backlogs`. See `processResults` /
+    `studentResultsModel` in database/models.py for the exact response shape.
+
+    Caching: Redis key `<rollNo>Results` for `EXPIRY_TIME` seconds. The cached
+    payload is augmented with a live `serverStatus` flag derived from
+    `check_valid_url_in_redis` before returning. Falls back to a queued scrape
+    via `publish_message` on cache+DB miss.
+    """
 
     roll_results_key = f"{roll_number}Results"
 

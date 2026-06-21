@@ -12,7 +12,20 @@ from utils.helpers import isbpharmacyr22
 
 
 async def fetch_backlogs(app: FastAPI, roll_number: str):
-    """Fetch student details and results from the database."""
+    """Return only the subjects this student has NOT yet cleared across any attempt.
+
+    Internally builds the consolidated (best-attempt-per-subject) view and then
+    filters down to subjects whose best grade is still F or Ab. The response
+    contains only the failing semesters, only the failing subjects within those
+    semesters, and a `totalBacklogs` count.
+
+    Distinct from `fetch_results` (which returns every subject) and from
+    `grace_marks_service.check_eligibility` (which uses the backlog list as input
+    to decide grace eligibility). Honors B.Pharm R22 grading via `isbpharmacyr22`.
+
+    Caching: Redis key `<rollNo>Backlogs` for `EXPIRY_TIME` seconds; queues a
+    scrape via `publish_message` on cache+DB miss.
+    """
 
     roll_backlogs_key = f"{roll_number}Backlogs"
 

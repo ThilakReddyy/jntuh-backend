@@ -31,8 +31,19 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getAllResult",
-        summary="Fetch all student results",
-        description="Retrieves the full academic record for all students.",
+        operation_id="get_all_result",
+        summary="Fetch every exam attempt for a student",
+        description=(
+            "Returns the COMPLETE attempt history for a single student, grouped per "
+            "semester. Each semester contains a list of exams (regular, supplementary, "
+            "RCRV-revaluation, Grace) and each exam holds the subject grades exactly "
+            "as recorded for that attempt — nothing is collapsed or deduplicated. "
+            "Use this when the caller wants to see EVERY attempt, including failed "
+            "regulars later cleared via supplementary. Do NOT use this for SGPA/CGPA "
+            "or the effective mark sheet — call getAcademicResult for the consolidated "
+            "rollup instead. Cached in Redis under `<rollNo>ALL`; on cache+DB miss the "
+            "scrape is queued via RabbitMQ and a pending response is returned."
+        ),
         tags=["Results"],
     )
     async def get_all_result(
@@ -42,8 +53,20 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getAcademicResult",
-        summary="Fetch academic results",
-        description="Retrieves a specific student's academic results based on query parameters.",
+        operation_id="get_academic_result",
+        summary="Fetch the consolidated final mark sheet",
+        description=(
+            "Returns the CONSOLIDATED final mark sheet for a single student. For each "
+            "subject, the highest grade across all attempts (regular, supplementary, "
+            "RCRV, Grace) is kept — so if a student failed the regular exam and "
+            "cleared the supplementary, the supply grade wins. From that best-attempt "
+            "set the response computes per-semester SGPA, semester credits, semester "
+            "backlog count, an overall CGPA, total credits, and total backlogs. This "
+            "is the right tool for `What is this student's effective academic "
+            "standing?`. For raw per-attempt history, call getAllResult; for only the "
+            "still-failing subjects, call getBacklogs. Cached in Redis under "
+            "`<rollNo>Results`; falls back to a queued scrape on miss."
+        ),
         tags=["Results"],
     )
     async def get_result(
@@ -53,8 +76,16 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getBacklogs",
-        summary="Fetch student backlogs",
-        description="Retrieves a list of backlogs (pending subjects) for a student.",
+        operation_id="get_backlogs",
+        summary="List subjects the student has not yet cleared",
+        description=(
+            "Lists subjects the student has NOT yet cleared across any attempt — i.e. "
+            "the best grade per subject is still F or Ab. The response contains only "
+            "the failing semesters, only the failing subjects within those semesters, "
+            "and a `totalBacklogs` count. Distinct from getAcademicResult (which "
+            "includes every subject) and from grace-marks/eligibility (which uses the "
+            "backlog list as input to decide grace eligibility)."
+        ),
         tags=["Results"],
     )
     async def get_backlogs(
@@ -64,8 +95,16 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getCreditsChecker",
-        summary="Get Required Credits",
-        description="Retrives required credits for a student",
+        operation_id="get_credits_checker",
+        summary="Compute obtained vs required credits by academic year",
+        description=(
+            "Computes credits earned vs the regulation's required-credits table for "
+            "the student's roll-number / regulation. Returns `totalObtainedCredits`, "
+            "`totalRequiredCredits`, and a year-by-year breakdown showing each "
+            "academic year's two semesters, credits obtained per semester, and the "
+            "year's incremental credit target. B.Tech only — returns a failure "
+            "message for other degrees / regulations."
+        ),
         tags=["Results"],
     )
     async def get_credits_checker(
@@ -75,8 +114,16 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getResultContrast",
-        summary="Get Result Contrast ",
-        description="Retrives difference between two students marks",
+        operation_id="get_result_contrast",
+        summary="Side-by-side comparison of two students",
+        description=(
+            "Side-by-side comparison of EXACTLY TWO students' consolidated results. "
+            "Returns each student's profile (name, college code, father name, CGPA, "
+            "backlogs, credits) plus a per-semester comparison row (SGPA, credits, "
+            "grades, backlogs, failed flag) — semesters one student doesn't have are "
+            "filled with `-` placeholders. Both roll numbers are validated and each "
+            "is scraped on miss. Use only when comparing two specific students."
+        ),
         tags=["Results"],
     )
     async def get_result_contrast(
@@ -86,8 +133,17 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/grace-marks/eligibility",
-        summary="Check grace marks eligibility",
-        description="API to check whether a student is eligible for grace marks",
+        operation_id="check_grace_marks_eligibility",
+        summary="Check JNTUH grace-marks eligibility",
+        description=(
+            "Determines whether a final-year student is eligible for the JNTUH "
+            "grace-marks scheme. Requires that 4-2 results have already synced into "
+            "the database; B.Tech and B.Pharm only (rejected for other degrees). On "
+            "success returns the student's backlog list (the same shape as "
+            "getBacklogs) — the frontend uses that list to render which subjects can "
+            "be raised by grace marks. Pair with grace-marks/proof for the "
+            "supporting payload."
+        ),
         tags=["Results"],
     )
     async def check_grace_marks_eligibility(
@@ -97,8 +153,14 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/grace-marks/proof",
-        summary="Get grace marks proof",
-        description="API to fetch or submit proof related to grace marks",
+        operation_id="get_grace_marks_proof",
+        summary="Get grace-marks proof payload",
+        description=(
+            "Returns the supporting payload used by the frontend to render the "
+            "grace-marks justification view for a single student. Currently a stub "
+            "that echoes `{roll_no, eligible: true}` — call AFTER grace-marks/"
+            "eligibility confirms the student qualifies."
+        ),
         tags=["Results"],
     )
     async def get_grace_marks_proof(
@@ -108,8 +170,19 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getClassResults",
-        summary="Get Class Results ",
-        description="Retrives the results of the class",
+        operation_id="get_class_results",
+        summary="Fetch results for an entire class section",
+        description=(
+            "Returns results for an ENTIRE class section, derived from the first 8 "
+            "characters of the supplied roll number. Internally also looks up the "
+            "paired day/evening cohort by swapping the 5th char (rule: `5↔A` per "
+            "JNTUH roll convention). The `type` query parameter selects the view "
+            "rendered for each student: `academicresult` (default) → consolidated "
+            "mark sheet (same shape as getAcademicResult), `allresult` → full attempt "
+            "history (same as getAllResult), `backlog` → backlogs-only (same as "
+            "getBacklogs). Returns HTTP 423 LOCKED if the scrape queue is over "
+            "capacity. Cached in Redis under `<class>Results+<type>` for 10 minutes."
+        ),
         tags=["Results"],
     )
     async def get_class_result(
@@ -130,8 +203,16 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/notifications",
-        summary="Fetch result notifications",
-        description="Retrieves  the notifications for the specified filters.",
+        operation_id="get_notifications",
+        summary="Fetch result notifications (paginated, filterable)",
+        description=(
+            "Paginated JNTUH result notifications, filterable by `regulation`, "
+            "`degree`, `year`, `title`, and `category` (only `results` or `all` are "
+            "honored — any other category returns an empty list). Cached in Redis "
+            "for 5 minutes per filter combination. Use this for a filterable "
+            "browsing feed; for the homepage `latest` strip use "
+            "getlatestnotifications instead."
+        ),
         tags=["Notifications"],
     )
     async def get_notifications(
@@ -156,8 +237,14 @@ def create_routes(app: FastAPI):
 
     @router.get(
         "/api/getlatestnotifications",
-        summary="Get Latest notifications",
-        description="Retrieves latest  notifications.",
+        operation_id="get_latest_notifications",
+        summary="Get the most-recent result notifications (homepage feed)",
+        description=(
+            "Returns the most-recent result notifications across all categories — "
+            "the homepage `latest` feed. No filters and no pagination; cached in "
+            "Redis for 5 minutes. For a filterable / paginated browse use "
+            "getNotifications."
+        ),
         tags=["Notifications"],
     )
     async def get_latest_notifications():

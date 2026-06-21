@@ -17,7 +17,24 @@ from config.settings import RABBITMQ_CLASS_MAX_MESSAGES
 
 
 async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
-    """Fetch student details and results from the database."""
+    """Return results for an ENTIRE class section, derived from one roll number.
+
+    The class is identified by the first 8 characters of the supplied roll
+    number; internally the function also resolves the paired day/evening cohort
+    by swapping the 5th char (rule: `5↔A` per JNTUH roll convention) so both
+    cohorts appear in the response. The `type` parameter selects which
+    per-student view is rendered:
+
+    - `academicresult` (default) → consolidated mark sheet (same shape as
+      `fetch_results`) — best-attempt-per-subject with SGPA/CGPA.
+    - `allresult` → full per-attempt history (same shape as `fetch_all_results`).
+    - `backlog` → backlogs-only (same shape as `fetch_backlogs`).
+
+    Backpressure: if the RabbitMQ scrape queue depth exceeds
+    `RABBITMQ_CLASS_MAX_MESSAGES` the response is HTTP 423 LOCKED so a class
+    request can't pile a hundred scrapes onto an already-loaded server.
+    Caching: Redis key `<class>Results+<type>` for 600 seconds.
+    """
 
     # --- Step 1: RabbitMQ load check ---
     async with app.state.rabbitmq_connection.channel() as channel:

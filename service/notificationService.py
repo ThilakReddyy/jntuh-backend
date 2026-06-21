@@ -14,7 +14,18 @@ from messaging.publisher import publish_message
 async def notification(
     page: int, category: str, regulation: str, degree: str, year: str, title: str
 ):
-    """Get Notifications"""
+    """Return paginated JNTUH result notifications, filterable by metadata.
+
+    Filters: `regulation`, `degree`, `year`, and a substring `title` are passed
+    through to `get_notifications`. The `category` arg is a coarse gate — only
+    `results` or `all` are honored; any other category returns an empty list
+    immediately without hitting the DB. Use this for the filterable browsing
+    feed; for the homepage `latest` strip use `getLatestNotifications`.
+
+    Caching: Redis key `<NOTIFICATIONS_REDIS_KEY><page><regulation><degree><year><title>`
+    for `FIVE_MINUTE_EXPIRY` seconds. Catches all exceptions and returns
+    HTTP 500 with a generic message.
+    """
     try:
         if category.lower() != "results" and category.lower() != "all":
             print(category)
@@ -44,6 +55,14 @@ async def notification(
 
 
 async def getLatestNotifications():
+    """Return the most-recent result notifications across all categories — the homepage feed.
+
+    No filters and no pagination — this is the small, always-fresh strip the
+    UI shows above the fold. For a filterable / paginated browse use
+    `notification`. Caching: Redis key `LATEST_NOTIFICATIONS_REDIS_KEY` for
+    `FIVE_MINUTE_EXPIRY` seconds. Catches all exceptions and returns HTTP 500
+    with a generic message.
+    """
     try:
         key = LATEST_NOTIFICATIONS_REDIS_KEY
         if redisConnection.client:
@@ -67,4 +86,11 @@ async def getLatestNotifications():
 
 
 async def refreshNotification(app: FastAPI):
+    """Admin-only: enqueue a full notifications-scrape via RabbitMQ.
+
+    Publishes a message with key `NOTIFICATIONS_REDIS_KEY` so the scraper
+    worker re-fetches and warms the notifications cache. Hidden from the
+    OpenAPI schema and not exposed over MCP — callers other than the admin/
+    scheduler should use `notification` or `getLatestNotifications` instead.
+    """
     return await publish_message(app, NOTIFICATIONS_REDIS_KEY)

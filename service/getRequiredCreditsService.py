@@ -10,6 +10,20 @@ from utils.helpers import get_credit_regulation_details, isbpharmacyr22
 
 
 async def fetch_required_credits(app: FastAPI, roll_number: str):
+    """Compute credits earned vs the regulation's required-credits table.
+
+    Resolves the regulation/credits table for the roll number via
+    `get_credit_regulation_details`, then returns a year-by-year breakdown:
+    each academic year shows the two semesters' obtained credits, the year's
+    cumulative `totalCredits`, plus an overall `totalObtainedCredits` and
+    `totalRequiredCredits` so the caller can check whether the student is on
+    track.
+
+    B.Tech only — for other degrees / regulations the function returns
+    `{status: "Failure", message: "..."}` without scraping. Caching: Redis key
+    `<rollNo>RequiredCredits` for `EXPIRY_TIME` seconds; queues a scrape via
+    `publish_message` on cache+DB miss.
+    """
     roll_credits_checker_key = f"{roll_number}RequiredCredits"
 
     if redisConnection.client:
