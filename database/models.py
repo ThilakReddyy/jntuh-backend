@@ -138,7 +138,9 @@ def processResults(results: List[mark], bpharmacyR22):
 
     return {
         "semesters": list(semesters.values()),
-        "CGPA": calculateGPA(total_grades, total_credits),
+        "CGPA": calculateGPA(total_grades, total_credits)
+        if total_backlogs == 0
+        else 0.0,
         "backlogs": total_backlogs,
         "credits": total_credits,
         "grades": total_grades,
