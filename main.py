@@ -121,4 +121,4 @@ mcp = FastApiMCP(
         "get_latest_notifications",
     ],
 )
-mcp.mount()
+mcp.mount_http()
