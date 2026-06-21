@@ -1,5 +1,7 @@
+import os
+
 from fastapi import APIRouter, FastAPI, Depends, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
 from database.models import PushSub
 from service.getAllResultService import fetch_all_results
@@ -21,6 +23,12 @@ from utils.helpers import validateRollNo, validateconstrastRollNos
 
 router = APIRouter()
 
+MCP_SETUP_PAGE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "static",
+    "mcp_setup.html",
+)
+
 
 def create_routes(app: FastAPI):
     """Creates routes and injects the FastAPI app instance."""
@@ -28,6 +36,11 @@ def create_routes(app: FastAPI):
     @router.get("/", include_in_schema=False)
     async def index():
         return RedirectResponse(url="/docs")
+
+    @router.get("/connect", include_in_schema=False)
+    async def mcp_connect():
+        """Serve the MCP connector setup guide."""
+        return FileResponse(MCP_SETUP_PAGE, media_type="text/html")
 
     @router.get(
         "/api/getAllResult",

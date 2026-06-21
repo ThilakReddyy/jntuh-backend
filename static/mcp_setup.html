@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JNTUH Results Connector — Setup Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#13171a;
+    --paper:#efe9d7;
+    --paper-soft:#e3dbc3;
+    --rule:#bdb08a;
+    --rule-soft:#d8cda7;
+    --ink:#23271f;
+    --ink-soft:#5c5f4f;
+    --stamp:#a3362b;
+    --seal:#8a6a2c;
+    --teal:#2e5b49;
+    --teal-soft:#e3e9e0;
+    --font-display:'IBM Plex Serif',serif;
+    --font-body:'IBM Plex Sans',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 0%, #1b211f 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, #181d1a 0%, transparent 55%);
+    color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.5;
+  }
+
+  a{color:var(--teal);}
+  :focus-visible{outline:2px solid var(--stamp); outline-offset:2px;}
+
+  .page-wrap{
+    display:flex;
+    justify-content:center;
+    padding:clamp(24px,6vw,72px) 16px clamp(48px,8vw,96px);
+  }
+
+  .sheet-frame{
+    position:relative;
+    max-width:860px;
+    width:100%;
+  }
+  .sheet-frame::before,
+  .sheet-frame::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:var(--paper-soft);
+    border:1px solid var(--rule);
+  }
+  .sheet-frame::before{ transform:rotate(-1.3deg) translate(-7px,10px); z-index:0; }
+  .sheet-frame::after{ transform:rotate(1.1deg) translate(8px,13px); z-index:0; }
+
+  .sheet{
+    position:relative;
+    z-index:1;
+    background:var(--paper);
+    border:1px solid var(--rule);
+    padding:clamp(28px,5vw,56px);
+  }
+
+  /* ---------- Letterhead ---------- */
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--stamp);
+    border:1px solid var(--stamp);
+    padding:4px 9px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{ content:"●"; font-size:9px; }
+
+  .letterhead{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    border-bottom:3px double var(--rule);
+    padding-bottom:20px;
+    margin-bottom:18px;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:clamp(28px,4.4vw,42px);
+    line-height:1.08;
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-size:clamp(15px,2vw,17px);
+    color:var(--ink-soft);
+    max-width:34ch;
+    margin:0;
+  }
+  .seal{ flex-shrink:0; width:64px; height:64px; }
+
+  .meta-row{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:0;
+    border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule);
+    margin-bottom:32px;
+  }
+  .meta-cell{
+    padding:10px 14px;
+    border-right:1px solid var(--rule);
+  }
+  .meta-cell:last-child{ border-right:none; }
+  .meta-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--teal);
+    display:block;
+    margin-bottom:4px;
+  }
+  .meta-value{
+    font-family:var(--font-mono);
+    font-size:13px;
+    word-break:break-word;
+  }
+
+  /* ---------- Quick facts ---------- */
+  .facts{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--rule);
+    margin-bottom:40px;
+    border:1px solid var(--rule);
+  }
+  .fact{
+    background:var(--paper);
+    padding:14px 12px;
+  }
+  .fact-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--teal);
+    display:block;
+    margin-bottom:6px;
+  }
+  .fact-value{ font-size:13.5px; font-weight:600; }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:0;
+  }
+  .tab-btn{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    background:var(--paper-soft);
+    border:1px solid var(--rule);
+    border-bottom:none;
+    color:var(--ink-soft);
+    padding:10px 18px;
+    cursor:pointer;
+    border-radius:3px 3px 0 0;
+  }
+  .tab-btn[aria-selected="true"]{
+    background:var(--paper);
+    color:var(--ink);
+    font-weight:600;
+    position:relative;
+    top:1px;
+  }
+  .tab-panels{
+    border:1px solid var(--rule);
+    border-top:none;
+    padding:clamp(20px,4vw,32px) clamp(18px,4vw,28px);
+    margin-bottom:40px;
+  }
+
+  /* ---------- Steps ---------- */
+  ol.steps{ list-style:none; margin:0 0 22px; padding:0; counter-reset:step; }
+  ol.steps li{
+    counter-increment:step;
+    display:grid;
+    grid-template-columns:38px 1fr;
+    gap:14px;
+    padding:12px 0;
+    border-bottom:1px solid var(--rule-soft);
+  }
+  ol.steps li:last-child{ border-bottom:none; }
+  ol.steps li::before{
+    content:counter(step);
+    font-family:var(--font-mono);
+    font-weight:600;
+    font-size:13px;
+    width:34px; height:34px;
+    border:1px solid var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .step-body strong{ display:block; margin-bottom:2px; font-size:15px; }
+  .step-body span{ color:var(--ink-soft); font-size:13.5px; }
+  .step-body code{
+    font-family:var(--font-mono);
+    background:var(--teal-soft);
+    padding:1px 6px;
+    border-radius:2px;
+    font-size:13px;
+  }
+
+  /* ---------- Callout ---------- */
+  .callout{
+    border-left:3px solid var(--teal);
+    background:var(--teal-soft);
+    padding:12px 16px;
+    margin:18px 0 26px;
+    font-size:13.5px;
+  }
+  .callout .label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--teal);
+    display:block;
+    margin-bottom:4px;
+  }
+
+  /* ---------- Prompt rows ---------- */
+  .prompt-table{ margin-top:24px; }
+  .prompt-heading{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--teal);
+    border-bottom:1px solid var(--rule);
+    padding-bottom:6px;
+    margin-bottom:4px;
+  }
+  .prompt-row{
+    display:grid;
+    grid-template-columns:120px 1fr;
+    gap:14px;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--rule-soft);
+  }
+  .prompt-tag{
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    letter-spacing:.05em;
+  }
+  .prompt-text{
+    font-family:var(--font-mono);
+    font-size:13px;
+    background:var(--paper-soft);
+    padding:6px 10px;
+    border:1px solid var(--rule-soft);
+    display:inline-block;
+  }
+
+  /* ---------- Code blocks ---------- */
+  .code-block{
+    position:relative;
+    background:#1b1f1c;
+    border:1px solid #30362f;
+    margin:18px 0 8px;
+  }
+  .code-tag{
+    position:absolute;
+    top:-1px; left:14px;
+    transform:translateY(-100%);
+    background:var(--ink);
+    color:var(--paper);
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.08em;
+    padding:3px 8px;
+  }
+  .code-block pre{
+    margin:0;
+    padding:20px 18px 16px;
+    overflow-x:auto;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    line-height:1.6;
+    color:#e7e2cf;
+  }
+  .copy-btn{
+    position:absolute;
+    top:8px; right:8px;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    background:transparent;
+    color:#cfc8ac;
+    border:1px solid #444a40;
+    padding:4px 9px;
+    cursor:pointer;
+  }
+  .copy-btn:hover{ border-color:#cfc8ac; }
+  .copy-note{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:0 0 22px;
+  }
+
+  /* ---------- Tools table ---------- */
+  .tools-section{ margin-bottom:40px; }
+  .section-eyebrow{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:6px;
+  }
+  h2{
+    font-family:var(--font-display);
+    font-size:clamp(20px,3vw,25px);
+    margin:0 0 18px;
+  }
+  table.tools{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13.5px;
+  }
+  table.tools th{
+    text-align:left;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--teal);
+    border-bottom:2px solid var(--ink);
+    padding:0 10px 8px 0;
+  }
+  table.tools td{
+    padding:11px 10px 11px 0;
+    border-bottom:1px solid var(--rule-soft);
+    vertical-align:top;
+  }
+  table.tools tr:nth-child(even) td{ background:rgba(189,176,138,0.10); }
+  table.tools td:first-child{ font-weight:600; white-space:nowrap; }
+  table.tools td:last-child{ color:var(--ink-soft); }
+
+  /* ---------- Verify / stamp ---------- */
+  .verify{
+    text-align:center;
+    padding:30px 0 6px;
+    border-top:3px double var(--rule);
+  }
+  .verify h2{ margin-bottom:6px; }
+  .verify p{
+    max-width:42ch;
+    margin:0 auto 26px;
+    color:var(--ink-soft);
+    font-size:14px;
+  }
+  .stamp-wrap{
+    display:flex;
+    justify-content:center;
+    margin-bottom:8px;
+  }
+  .stamp{
+    width:150px;
+    height:150px;
+    opacity:0;
+    transform:scale(1.6) rotate(2deg);
+    transition:opacity .5s ease, transform .55s cubic-bezier(.34,1.6,.5,1);
+  }
+  .stamp.in-view{
+    opacity:.92;
+    transform:scale(1) rotate(-9deg);
+  }
+  .stamp-rotate text{
+    fill:var(--stamp);
+    font-family:var(--font-mono);
+  }
+  .stamp-main{ font-size:19px; font-weight:600; letter-spacing:.03em; }
+  .stamp-sub{ font-size:10px; letter-spacing:.1em; }
+
+  /* ---------- Footer ---------- */
+  footer{
+    border-top:1px solid var(--rule);
+    padding-top:18px;
+    margin-top:8px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  footer p{ margin:0 0 8px; }
+  footer strong{ color:var(--ink); }
+
+  @media (max-width:640px){
+    .letterhead{ flex-direction:column; }
+    .seal{ display:none; }
+    .meta-row{ grid-template-columns:repeat(2,1fr); }
+    .meta-cell:nth-child(2){ border-right:none; }
+    .facts{ grid-template-columns:repeat(2,1fr); }
+    .prompt-row{ grid-template-columns:1fr; gap:4px; }
+    table.tools{ font-size:12.5px; }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .stamp{ transition:none; transform:rotate(-9deg); opacity:.92; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+  <div class="sheet-frame">
+    <div class="sheet">
+
+      <span class="eyebrow">Unofficial connector · MCP beta</span>
+
+      <div class="letterhead">
+        <div>
+          <h1>JNTUH Results, inside Claude.</h1>
+          <p class="subtitle">Pull semester results, backlogs, CGPA, and credit progress into a conversation — no portal refreshing required.</p>
+        </div>
+        <svg class="seal" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#8a6a2c" stroke-width="2"/>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="#8a6a2c" stroke-width="1"/>
+          <text x="50" y="58" text-anchor="middle" font-family="IBM Plex Serif, serif" font-weight="700" font-size="26" fill="#8a6a2c">JR</text>
+        </svg>
+      </div>
+
+      <div class="meta-row">
+        <div class="meta-cell">
+          <span class="meta-label">Server</span>
+          <span class="meta-value">jntuhresults.dhethi.com/mcp</span>
+        </div>
+        <div class="meta-cell">
+          <span class="meta-label">Covers</span>
+          <span class="meta-value">B.Tech &amp; B.Pharm</span>
+        </div>
+        <div class="meta-cell">
+          <span class="meta-label">Issued</span>
+          <span class="meta-value">21 Jun 2026</span>
+        </div>
+        <div class="meta-cell">
+          <span class="meta-label">Status</span>
+          <span class="meta-value">Active · Beta</span>
+        </div>
+      </div>
+
+      <div class="facts">
+        <div class="fact">
+          <span class="fact-label">Works on</span>
+          <span class="fact-value">Claude web, desktop, iOS, Android</span>
+        </div>
+        <div class="fact">
+          <span class="fact-label">Plans</span>
+          <span class="fact-value">Free (1 connector) · Pro/Max/Team/Ent.</span>
+        </div>
+        <div class="fact">
+          <span class="fact-label">Setup time</span>
+          <span class="fact-value">Under 2 minutes</span>
+        </div>
+        <div class="fact">
+          <span class="fact-label">Data needed</span>
+          <span class="fact-value">Roll number only — no password</span>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs" role="tablist">
+        <button class="tab-btn" role="tab" aria-selected="true" id="tab-claude" data-target="panel-claude">Set up in Claude</button>
+        <button class="tab-btn" role="tab" aria-selected="false" id="tab-mcp" data-target="panel-mcp">Set up in another MCP client</button>
+      </div>
+
+      <div class="tab-panels">
+
+        <!-- PANEL: CLAUDE -->
+        <section id="panel-claude" role="tabpanel" aria-labelledby="tab-claude">
+          <ol class="steps">
+            <li>
+              <div class="step-body">
+                <strong>Open Claude</strong>
+                <span>Web, desktop app, or the mobile app — setup is the same on all three.</span>
+              </div>
+            </li>
+            <li>
+              <div class="step-body">
+                <strong>Go to Settings → Connectors</strong>
+              </div>
+            </li>
+            <li>
+              <div class="step-body">
+                <strong>Select <em>Add custom connector</em></strong>
+                <span>It's the + button next to the Connectors list.</span>
+              </div>
+            </li>
+            <li>
+              <div class="step-body">
+                <strong>Name it and paste the server address</strong>
+                <span>Name: <code>JNTUH Results</code> · URL: <code>https://jntuhresults.dhethi.com/mcp</code></span>
+              </div>
+            </li>
+            <li>
+              <div class="step-body">
+                <strong>Select Add, then Connect</strong>
+              </div>
+            </li>
+            <li>
+              <div class="step-body">
+                <strong>Turn it on for your chat</strong>
+                <span>Open the tools menu (+) in the message box and enable it before you ask.</span>
+              </div>
+            </li>
+          </ol>
+
+          <div class="callout">
+            <span class="label">On the free plan</span>
+            This counts as your one custom connector. Pro, Max, Team, and Enterprise plans can run it alongside others.
+          </div>
+
+          <div class="prompt-table">
+            <div class="prompt-heading">Try asking Claude</div>
+            <div class="prompt-row"><span class="prompt-tag">Your result</span><span class="prompt-text">Check my JNTUH result for 21XX1A0501</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Backlogs</span><span class="prompt-text">What backlogs do I still have?</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Grace marks</span><span class="prompt-text">Am I eligible for grace marks?</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Credits</span><span class="prompt-text">How many credits do I still need to graduate?</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Compare</span><span class="prompt-text">Compare my result with 21XX1A0512</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Section</span><span class="prompt-text">Show results for my whole class section</span></div>
+            <div class="prompt-row"><span class="prompt-tag">Updates</span><span class="prompt-text">Any new JNTUH result notifications?</span></div>
+          </div>
+        </section>
+
+        <!-- PANEL: MCP CLIENT -->
+        <section id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
+          <p style="margin-top:0;">This is a standard remote MCP server reachable over HTTPS. Any MCP-compatible client — Claude Desktop, Cursor, Windsurf, Cline, or a client you've built yourself — can connect to it the same way it connects to any other remote server.</p>
+
+          <div class="code-block">
+            <span class="code-tag">JSON · client config</span>
+            <button class="copy-btn" data-copy='{
+  "mcpServers": {
+    "jntuh-results": {
+      "url": "https://jntuhresults.dhethi.com/mcp"
+    }
+  }
+}'>Copy</button>
+            <pre>{
+  "mcpServers": {
+    "jntuh-results": {
+      "url": "https://jntuhresults.dhethi.com/mcp"
+    }
+  }
+}</pre>
+          </div>
+          <p class="copy-note">Field names vary slightly between clients — some expect a <code style="font-family:var(--font-mono); background:var(--teal-soft); padding:1px 5px;">transport</code> or <code style="font-family:var(--font-mono); background:var(--teal-soft); padding:1px 5px;">type</code> field alongside the URL. Check your client's MCP documentation for the exact shape it wants.</p>
+
+          <div class="code-block">
+            <span class="code-tag">JS · Anthropic API</span>
+            <button class="copy-btn" data-copy='mcp_servers: [
+  {
+    "type": "url",
+    "url": "https://jntuhresults.dhethi.com/mcp",
+    "name": "jntuh-results"
+  }
+]'>Copy</button>
+            <pre>mcp_servers: [
+  {
+    "type": "url",
+    "url": "https://jntuhresults.dhethi.com/mcp",
+    "name": "jntuh-results"
+  }
+]</pre>
+          </div>
+          <p class="copy-note">Building on the Anthropic API directly? Pass it as an <code style="font-family:var(--font-mono); background:var(--teal-soft); padding:1px 5px;">mcp_servers</code> entry on your <code style="font-family:var(--font-mono); background:var(--teal-soft); padding:1px 5px;">/v1/messages</code> call.</p>
+        </section>
+
+      </div>
+
+      <!-- TOOLS -->
+      <div class="tools-section">
+        <div class="section-eyebrow">What's inside</div>
+        <h2>Eight tools, one server</h2>
+        <table class="tools">
+          <thead>
+            <tr><th>Tool</th><th>What it returns</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Result lookup</td><td>Consolidated grade card — SGPA, CGPA, total credits, best grade per subject across all attempts.</td></tr>
+            <tr><td>Full history</td><td>Every exam attempt per semester — regular, supplementary, revaluation, and grace — without collapsing duplicates.</td></tr>
+            <tr><td>Backlogs</td><td>Just the subjects still showing F or Ab, grouped by semester, with a total count.</td></tr>
+            <tr><td>Credits check</td><td>Credits earned vs. required for each academic year. B.Tech only.</td></tr>
+            <tr><td>Grace marks</td><td>Whether the scheme applies, and which backlog subjects it could clear. B.Tech &amp; B.Pharm only.</td></tr>
+            <tr><td>Class results</td><td>Results for an entire section at once, including the paired day/evening cohort.</td></tr>
+            <tr><td>Compare</td><td>Two roll numbers side by side, semester by semester — SGPA, credits, and backlog flags.</td></tr>
+            <tr><td>Notifications</td><td>Latest JNTUH result announcements, filterable by regulation, degree, and year.</td></tr>
+          </tbody>
+        </table>
+        <p class="copy-note" style="margin-top:14px;">Roll numbers are the standard 10-character JNTUH format — e.g. <code style="font-family:var(--font-mono); background:var(--teal-soft); padding:1px 5px;">21XX1A0501</code>. A first lookup for a fresh roll number can take a few seconds longer while it's fetched.</p>
+      </div>
+
+      <!-- VERIFY -->
+      <div class="verify" id="verify">
+        <h2>That's it.</h2>
+        <p>Ask a question with a roll number and the connector handles the rest. If a result hasn't synced yet, it'll say so instead of guessing.</p>
+        <div class="stamp-wrap">
+          <svg class="stamp" id="stampSvg" viewBox="0 0 220 220" aria-hidden="true">
+            <g class="stamp-rotate">
+              <path id="circlePath" d="M110,110 m-82,0 a82,82 0 1,1 164,0 a82,82 0 1,1 -164,0" fill="none"/>
+              <circle cx="110" cy="110" r="95" fill="none" stroke="#a3362b" stroke-width="2.5"/>
+              <circle cx="110" cy="110" r="68" fill="none" stroke="#a3362b" stroke-width="1.5"/>
+              <text font-size="9.5" letter-spacing="2.5">
+                <textPath href="#circlePath" startOffset="2%">★ JNTUH RESULTS · MCP ★ VERIFIED CONNECTION ★ JNTUH RESULTS · MCP ★ VERIFIED CONNECTION</textPath>
+              </text>
+              <text x="110" y="103" text-anchor="middle" class="stamp-main">CONNECTED</text>
+              <text x="110" y="124" text-anchor="middle" class="stamp-sub">JUN 2026</text>
+              <path d="M82 113 L102 134 L142 92" fill="none" stroke="#a3362b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <footer>
+        <p><strong>Unofficial, third-party project.</strong> Not affiliated with JNTUH or Anthropic — built on top of publicly available JNTUH result data.</p>
+        <p>For anything official — admissions, certificates, revaluation requests — use the university's own results portal. Only a roll number is ever requested here; this connector never asks for a password.</p>
+      </footer>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  const tabs = document.querySelectorAll('.tab-btn');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.setAttribute('aria-selected', 'false'));
+      btn.setAttribute('aria-selected', 'true');
+      document.querySelectorAll('.tab-panels > section').forEach(p => p.hidden = true);
+      document.getElementById(btn.dataset.target).hidden = false;
+    });
+  });
+
+  // Copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy');
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch (e) {
+        btn.textContent = 'Press Ctrl+C';
+      }
+    });
+  });
+
+  // Stamp reveal on scroll
+  const stamp = document.getElementById('stampSvg');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) {
+    stamp.classList.add('in-view');
+  } else if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          stamp.classList.add('in-view');
+          observer.disconnect();
+        }
+      });
+    }, { threshold: 0.4 });
+    observer.observe(stamp);
+  } else {
+    stamp.classList.add('in-view');
+  }
+</script>
+
+</body>
+</html>
