@@ -6,8 +6,12 @@ from contextlib import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
 from fastapi_mcp import FastApiMCP
 from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from api.routes import create_routes
+from config.rateLimiter import limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
@@ -60,6 +64,11 @@ app = FastAPI(lifespan=lifespan)
 
 app.openapi = custom_openapi
 
+# Rate limiting. Added before CORSMiddleware so CORS ends up outermost and
+# 429 responses from the limiter still carry the CORS headers the browser needs.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
