@@ -12,10 +12,18 @@ breaking the API.
 """
 
 from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.requests import Request
+from starlette.responses import Response
 
 from config.settings import REDIS_URL
+
+# Paths under these prefixes bypass the limiter entirely. The MCP server is
+# mounted as a sub-app via FastApiMCP.mount_http() — slowapi 0.1.10 still
+# applies default_limits to it through the outer middleware, so we exempt it
+# explicitly rather than relying on the "no endpoint → skipped" assumption.
+EXEMPT_PATH_PREFIXES = ("/mcp",)
 
 
 def get_client_ip(request: Request) -> str:
@@ -32,10 +40,11 @@ def get_client_ip(request: Request) -> str:
     return get_remote_address(request)
 
 
-# Default applied to every route via SlowAPIMiddleware. Routes mounted as
-# sub-apps (e.g. /mcp) carry no `endpoint` and are skipped automatically;
-# routes that declare their own @limiter.limit(...) opt out of this default and
-# enforce only their stricter limit.
+# Default applied to every route via ExemptingSlowAPIMiddleware. Paths under
+# EXEMPT_PATH_PREFIXES (currently only `/mcp`) bypass the limiter entirely —
+# slowapi 0.1.10 does NOT auto-skip mounted sub-apps the way the docs imply, so
+# we exempt them explicitly. Routes that declare their own @limiter.limit(...)
+# opt out of this default and enforce only their stricter limit.
 DEFAULT_LIMIT = "30/minute"
 
 limiter = Limiter(
@@ -48,3 +57,12 @@ limiter = Limiter(
     in_memory_fallback_enabled=True,  # fall back to memory if Redis is down
     key_prefix="rl",
 )
+
+
+class ExemptingSlowAPIMiddleware(SlowAPIMiddleware):
+    """SlowAPIMiddleware that short-circuits for `EXEMPT_PATH_PREFIXES`."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.url.path.startswith(EXEMPT_PATH_PREFIXES):
+            return await call_next(request)
+        return await super().dispatch(request, call_next)
