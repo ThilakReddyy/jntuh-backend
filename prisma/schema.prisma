@@ -119,3 +119,19 @@ enum JobType {
   FULL_TIME
   PART_TIME
 }
+
+model GraceMarksProof {
+  id               String   @id @default(uuid())
+  rollNumber       String
+  s3Key            String   @unique
+  s3Url            String
+  originalFilename String
+  contentType      String
+  fileSize         Int
+  status           String   @default("pending")
+  uploadedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([rollNumber])
+  @@map("grace_marks_proof")
+}
