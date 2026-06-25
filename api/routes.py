@@ -154,8 +154,9 @@ def create_routes(app: FastAPI):
             "the database; B.Tech and B.Pharm only (rejected for other degrees). On "
             "success returns the student's backlog list (the same shape as "
             "getBacklogs) — the frontend uses that list to render which subjects can "
-            "be raised by grace marks. Pair with grace-marks/proof for the "
-            "supporting payload."
+            "be raised by grace marks. Returns 404 if the roll number has no record, "
+            "and 406 if the student has already cleared every subject (grace marks "
+            "do not apply). Pair with grace-marks/proof for the supporting payload."
         ),
         tags=["Results"],
     )

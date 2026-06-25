@@ -81,7 +81,7 @@ Prisma schema (`prisma/schema.prisma`):
 
 ### Rate limiting
 
-`config/rateLimiter.py` defines a shared `slowapi` `Limiter` keyed by the real client IP (resolved from `CF-Connecting-IP` → `X-Forwarded-For` → socket peer, in that order — required because the app runs behind Cloudflare). Default limit is `30/minute`, storage is Redis with in-memory fallback, and it fails open on Redis errors. Note: this module is staged but not yet wired into `main.py` as middleware.
+`config/rateLimiter.py` defines a shared `slowapi` `Limiter` keyed by the real client IP (resolved from `CF-Connecting-IP` → `X-Forwarded-For` → socket peer, in that order — required because the app runs behind Cloudflare). Default limit is `30/minute`, storage is Redis with in-memory fallback, and it fails open on Redis errors. Wired into `main.py` via `ExemptingSlowAPIMiddleware` (also defined in `rateLimiter.py`), which short-circuits paths under `EXEMPT_PATH_PREFIXES` — currently `/mcp`, since slowapi 0.1.10 does not actually auto-skip mounted sub-apps despite the docs. SlowAPI is added before CORS so CORS sits outermost and 429 responses still carry `Access-Control-Allow-Origin`.
 
 ## Conventions worth knowing
 

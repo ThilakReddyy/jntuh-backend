@@ -1,3 +1,5 @@
+from fastapi import status
+from fastapi.responses import JSONResponse
 from database.models import studentBacklogs
 from database.operations import check_4_2_semester, get_details
 
@@ -11,6 +13,14 @@ async def check_eligibility(app, roll_no: str):
     DB (`check_4_2_semester`). On success the response IS the backlog list (same
     shape as `fetch_backlogs`) — the frontend uses that list to render which
     subjects can be raised by grace marks.
+
+    Response codes:
+    - 200: returns the backlog list when the student has at least one backlog.
+    - 404 (Not Found): the roll number has no record in the DB.
+    - 406 (Not Acceptable): the student has cleared every subject, so the
+      grace-marks scheme does not apply.
+    The two degree/sync precondition failures still return a plain `failure`
+    dict (200) — the frontend renders the message verbatim.
 
     Pair with `get_proof` for the supporting payload after eligibility is
     confirmed.
@@ -30,11 +40,24 @@ async def check_eligibility(app, roll_no: str):
     if response:
         _, marks = response
         backlogs = studentBacklogs(marks, False)
+        if backlogs["totalBacklogs"] == 0:
+            return JSONResponse(
+                status_code=status.HTTP_406_NOT_ACCEPTABLE,
+                content={
+                    "status": "failure",
+                    "message": "You have passed all the exams not applicable to you",
+                },
+            )
+
         return backlogs
-    return {
-        "status": "failure",
-        "message": "Unable to find your roll number",
-    }
+
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "status": "failure",
+            "message": "Unable to find your roll number",
+        },
+    )
 
 
 async def get_proof(app, roll_no: str):
