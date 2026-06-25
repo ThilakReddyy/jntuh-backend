@@ -113,7 +113,7 @@ mcp = FastApiMCP(
         "MCP tools for querying JNTUH student academic data: full attempt history "
         "(getAllResult) vs the consolidated best-attempt mark sheet "
         "(getAcademicResult), backlogs, credits-vs-required-credits, two-student "
-        "result contrast, class-wide results, grace-marks eligibility/proof, and "
+        "result contrast, class-wide results, grace-marks eligibility, and "
         "result notifications. Read-only — destructive endpoints are intentionally "
         "not exposed."
     ),
@@ -124,7 +124,6 @@ mcp = FastApiMCP(
         "get_credits_checker",
         "get_result_contrast",
         "check_grace_marks_eligibility",
-        "get_grace_marks_proof",
         "get_class_results",
         "get_notifications",
         "get_latest_notifications",

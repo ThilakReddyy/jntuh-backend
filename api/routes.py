@@ -1,8 +1,18 @@
 import os
 
-from fastapi import APIRouter, FastAPI, Depends, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
+from config.rateLimiter import limiter
 from database.models import PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
@@ -165,22 +175,43 @@ def create_routes(app: FastAPI):
     ):
         return await grace_marks_service.check_eligibility(app, roll_no)
 
-    @router.get(
+    @router.post(
         "/api/grace-marks/proof",
-        operation_id="get_grace_marks_proof",
-        summary="Get grace-marks proof payload",
+        summary="Upload grace-marks proof document",
         description=(
-            "Returns the supporting payload used by the frontend to render the "
-            "grace-marks justification view for a single student. Currently a stub "
-            "that echoes `{roll_no, eligible: true}` — call AFTER grace-marks/"
-            "eligibility confirms the student qualifies."
+            "Uploads the supporting JNTUH sheet (PDF or image, ≤5MB) for a "
+            "grace-marks eligible student. Re-verifies eligibility with the same "
+            "logic as grace-marks/eligibility before storing the file in S3 and "
+            "recording its location. Per-IP rate limit: 5/minute."
         ),
         tags=["Results"],
     )
-    async def get_grace_marks_proof(
+    @limiter.limit("5/minute")
+    async def upload_grace_marks_proof(
+        request: Request,
         roll_no: str = Depends(validateRollNo),
+        file: UploadFile = File(...),
     ):
-        return await grace_marks_service.get_proof(app, roll_no)
+        return await grace_marks_service.upload_proof(app, roll_no, file)
+
+    @router.get(
+        "/api/grace-marks/proofs/pending",
+        summary="List pending grace-marks proofs (admin)",
+        description=(
+            "Returns up to 10 `grace_marks_proof` rows whose status is still "
+            "`pending`, oldest first, with a 1-hour presigned GET URL per file. "
+            "Requires `X-Admin-Key` matching `GRACE_MARKS_ADMIN_KEY` in the env "
+            "— missing or wrong key both return 401. Per-IP rate limit: 10/minute."
+        ),
+        tags=["Results"],
+        include_in_schema=False,
+    )
+    @limiter.limit("10/minute")
+    async def list_pending_grace_marks_proofs(
+        request: Request,
+        x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    ):
+        return await grace_marks_service.list_pending_proofs(app, x_admin_key)
 
     @router.get(
         "/api/getClassResults",

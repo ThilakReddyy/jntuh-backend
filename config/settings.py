@@ -15,6 +15,11 @@ required_env_vars = [
     "VAPID_PRIVATE_KEY",
     "TELEGRAM_TOKEN",
     "TELEGRAM_CHAT_ID",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_REGION",
+    "S3_BUCKET_NAME",
+    "GRACE_MARKS_ADMIN_KEY",
 ]
 
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -31,6 +36,20 @@ VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_REGION")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL") or None
+S3_PUBLIC_URL_BASE = os.getenv("S3_PUBLIC_URL_BASE") or None
+GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
+GRACE_MARKS_PROOF_MAX_BYTES = 5 * 1024 * 1024
+GRACE_MARKS_PROOF_ALLOWED_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+}
 
 NOTIFICATIONS_EXPIRY_TIME = 1800
 EXPIRY_TIME = 1200

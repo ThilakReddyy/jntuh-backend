@@ -3,7 +3,7 @@ import json
 
 from collections import defaultdict
 
-from prisma.types import examcodesWhereInput
+from prisma.types import GraceMarksProofWhereInput, examcodesWhereInput
 from config.connection import prismaConnection
 from config.settings import RESULTS
 from database.models import PushSub
@@ -325,6 +325,35 @@ async def save_subscription_details(data: PushSub):
                 "subscription": subscription_str,
             },
         },
+    )
+
+
+async def save_grace_marks_proof(
+    roll_number: str,
+    s3_key: str,
+    s3_url: str,
+    filename: str,
+    content_type: str,
+    size: int,
+):
+    return await prismaConnection.prisma.gracemarksproof.create(
+        data={
+            "rollNumber": roll_number,
+            "s3Key": s3_key,
+            "s3Url": s3_url,
+            "originalFilename": filename,
+            "contentType": content_type,
+            "fileSize": size,
+        }
+    )
+
+
+async def get_pending_grace_marks_proofs():
+    where: GraceMarksProofWhereInput = {"status": "pending"}
+    return await prismaConnection.prisma.gracemarksproof.find_many(
+        where=where,
+        order=[{"uploadedAt": "asc"}],
+        take=10,
     )
 
 

@@ -28,7 +28,9 @@ locust -f tests/locustfile.py --host http://localhost:8000
 
 There is no unit-test suite or linter wired up. `pyrightconfig.json` enables Pyright type checks rooted at `./`. The `tests/` directory contains only Locust load tests.
 
-Required env vars (validated at startup in `config/settings.py` — the process exits if any are missing): `RABBITMQ_URL`, `DATABASE_URL`, `QUEUE_NAME`, `REDIS_URL`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`. See `.env.example` for the local format.
+Required env vars (validated at startup in `config/settings.py` — the process exits if any are missing): `RABBITMQ_URL`, `DATABASE_URL`, `QUEUE_NAME`, `REDIS_URL`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`. Optional: `S3_ENDPOINT_URL` (point at MinIO locally; leave unset for real S3) and `S3_PUBLIC_URL_BASE` (override of the public-fetch URL). See `.env.example` for the local format.
+
+Local S3 (MinIO) is brought up by `docker-compose up -d` on `localhost:9000` (API) and `localhost:9001` (console). The bucket must exist before the upload endpoint will work — once per machine: `mc alias set local http://localhost:9000 minioadmin minioadmin && mc mb local/jntuh-grace-proofs`.
 
 ## Architecture
 
