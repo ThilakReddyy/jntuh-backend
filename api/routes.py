@@ -28,6 +28,7 @@ from service.notificationService import (
 )
 from service.subscriptionService import save_subscription
 from service import grace_marks_service
+from utils.auth import require_api_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
 
 
@@ -212,6 +213,27 @@ def create_routes(app: FastAPI):
         x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
     ):
         return await grace_marks_service.list_pending_proofs(app, x_admin_key)
+
+    @router.get(
+        "/api/grace-marks/proofs/{proof_id}",
+        summary="Get one grace-marks proof with presigned URL + backlogs (admin)",
+        description=(
+            "Returns a single `grace_marks_proof` row with a 1-hour presigned "
+            "GET URL for the uploaded file and the student's current backlog "
+            "payload (same shape as `/api/getBacklogs`). Requires `x-api-key` "
+            "matching `GRACE_MARKS_ADMIN_KEY`. Returns 404 if the id is unknown. "
+            "Per-IP rate limit: 10/minute."
+        ),
+        tags=["Results"],
+        include_in_schema=False,
+        dependencies=[Depends(require_api_key)],
+    )
+    @limiter.limit("10/minute")
+    async def get_grace_marks_proof_route(
+        request: Request,
+        proof_id: str,
+    ):
+        return await grace_marks_service.get_proof_with_backlogs(app, proof_id)
 
     @router.get(
         "/api/getClassResults",

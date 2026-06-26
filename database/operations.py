@@ -357,6 +357,29 @@ async def get_pending_grace_marks_proofs():
     )
 
 
+async def list_grace_marks_proofs(
+    limit: int, offset: int, status: str | None
+):
+    where: GraceMarksProofWhereInput = {}
+    if status:
+        where["status"] = status
+
+    rows = await prismaConnection.prisma.gracemarksproof.find_many(
+        where=where,
+        order=[{"uploadedAt": "desc"}],
+        skip=offset,
+        take=limit,
+    )
+    total = await prismaConnection.prisma.gracemarksproof.count(where=where)
+    return rows, total
+
+
+async def get_grace_marks_proof_by_id(proof_id: str):
+    return await prismaConnection.prisma.gracemarksproof.find_unique(
+        where={"id": proof_id},
+    )
+
+
 async def get_latest_notifications():
     today = datetime.utcnow()
     one_weeks_ago = today - timedelta(days=7)

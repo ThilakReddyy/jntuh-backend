@@ -1,9 +1,11 @@
 import hmac
+import json
 import os
 import uuid
 
 from fastapi import UploadFile, status
 from fastapi.responses import JSONResponse
+from starlette.responses import Response
 
 from config.settings import (
     GRACE_MARKS_ADMIN_KEY,
@@ -14,7 +16,9 @@ from database.models import studentBacklogs
 from database.operations import (
     check_4_2_semester,
     get_details,
+    get_grace_marks_proof_by_id,
     get_pending_grace_marks_proofs,
+    list_grace_marks_proofs,
     save_grace_marks_proof,
 )
 from utils.logger import database_logger, logger
@@ -97,9 +101,10 @@ async def check_eligibility(app, roll_no: str):
 
 def _sanitize_filename(name: str) -> str:
     base = os.path.basename(name or "proof")
-    return "".join(c if c.isalnum() or c in (".", "-", "_") else "_" for c in base)[
-        :128
-    ] or "proof"
+    return (
+        "".join(c if c.isalnum() or c in (".", "-", "_") else "_" for c in base)[:128]
+        or "proof"
+    )
 
 
 async def upload_proof(app, roll_no: str, file: UploadFile):
@@ -187,6 +192,49 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
     )
 
 
+def _serialize_proof(row) -> dict:
+    return {
+        "id": row.id,
+        "rollNumber": row.rollNumber,
+        "originalFilename": row.originalFilename,
+        "contentType": row.contentType,
+        "fileSize": row.fileSize,
+        "status": row.status,
+        "uploadedAt": row.uploadedAt.isoformat(),
+        "updatedAt": row.updatedAt.isoformat(),
+    }
+
+
+async def get_proof_with_backlogs(app, proof_id: str):
+    """Single proof view: row metadata + 1-hour presigned GET URL + the student's backlog payload."""
+    row = await get_grace_marks_proof_by_id(proof_id)
+    if not row:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "status": "failure",
+                "message": "Grace-marks proof not found.",
+            },
+        )
+
+    from service.getBacklogsService import fetch_backlogs
+
+    download_url = await generate_get_url(row.s3Key)
+    backlogs = await fetch_backlogs(app, row.rollNumber)
+
+    if isinstance(backlogs, Response):
+        backlogs = json.loads(backlogs.body)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            **_serialize_proof(row),
+            "downloadUrl": download_url,
+            "backlogs": backlogs,
+        },
+    )
+
+
 async def list_pending_proofs(app, admin_key: str | None):
     """Admin-only listing of the oldest 10 pending proofs, each with a signed GET URL.
 
@@ -196,9 +244,7 @@ async def list_pending_proofs(app, admin_key: str | None):
     `hmac.compare_digest` is constant-time so a bad key can't be inferred from
     response timing.
     """
-    if not admin_key or not hmac.compare_digest(
-        admin_key, GRACE_MARKS_ADMIN_KEY or ""
-    ):
+    if not admin_key or not hmac.compare_digest(admin_key, GRACE_MARKS_ADMIN_KEY or ""):
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"status": "failure", "message": "Invalid admin key."},

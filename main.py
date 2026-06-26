@@ -77,6 +77,7 @@ app.add_middleware(
         "https://jntuhconnect.dhethi.com",
         "https://dhethi.com",
         "http://localhost:3000",
+        "http://localhost:3001",
     ],  # Allows all origins (Use specific domains in production)
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
