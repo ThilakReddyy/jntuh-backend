@@ -13,6 +13,7 @@ must be pre-provisioned.
 from typing import Any, AsyncContextManager, cast
 
 import aioboto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from config.settings import (
@@ -26,6 +27,10 @@ from config.settings import (
 from utils.logger import logger
 
 _session = aioboto3.Session()
+_s3_config = Config(
+    signature_version="s3v4",
+    s3={"addressing_style": "path" if S3_ENDPOINT_URL else "virtual"},
+)
 
 
 def _client_kwargs() -> dict:
@@ -34,6 +39,7 @@ def _client_kwargs() -> dict:
         "region_name": AWS_REGION,
         "aws_access_key_id": AWS_ACCESS_KEY_ID,
         "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
+        "config": _s3_config,
     }
 
 
