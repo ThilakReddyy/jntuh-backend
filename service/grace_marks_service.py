@@ -12,15 +12,20 @@ from config.settings import (
     GRACE_MARKS_PROOF_ALLOWED_TYPES,
     GRACE_MARKS_PROOF_MAX_BYTES,
 )
-from database.models import studentBacklogs
+from config.connection import prismaConnection
+from database.models import GraceMarksPayload, ProofStatusUpdate, studentBacklogs
 from database.operations import (
     check_4_2_semester,
     get_details,
     get_grace_marks_proof_by_id,
+    get_latest_mark_for_subject,
     get_pending_grace_marks_proofs,
     list_grace_marks_proofs,
     save_grace_marks_proof,
+    update_grace_marks_proof_status,
+    upsert_grace_mark,
 )
+from utils.caching import invalidate_all_cache
 from utils.logger import database_logger, logger
 from utils.s3 import generate_get_url, generate_get_urls, upload_bytes
 
@@ -231,6 +236,153 @@ async def get_proof_with_backlogs(app, proof_id: str):
             **_serialize_proof(row),
             "downloadUrl": download_url,
             "backlogs": backlogs,
+        },
+    )
+
+
+async def apply_grace_marks(app, payload: GraceMarksPayload):
+    """Insert one grace-marks mark row per subject in the payload.
+
+    All-or-nothing: every (rollNumber, subjectCode) pair is resolved against
+    the DB before any insert runs. If the student is unknown, any subject is
+    unknown, or any subject has no prior mark to anchor `semesterCode` /
+    `examCode` from, the request fails with 404 and nothing is written. On
+    success the student's read caches are invalidated so the next read shows
+    the new grace rows immediately.
+    """
+    roll_no = payload.rollNumber.strip().upper()
+    if len(roll_no) != 10 or not roll_no.isalnum():
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "status": "failure",
+                "message": "Invalid roll number. It should be 10 alphanumeric characters.",
+            },
+        )
+
+    if not payload.marks:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"status": "failure", "message": "marks array is empty."},
+        )
+
+    student = await prismaConnection.prisma.student.find_unique(
+        where={"rollNumber": roll_no}
+    )
+    if not student:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"status": "failure", "message": "Roll number not found."},
+        )
+
+    resolved = []
+    for entry in payload.marks:
+        subject = await prismaConnection.prisma.subject.find_unique(
+            where={"subjectCode": entry.subjectCode}
+        )
+        if not subject:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={
+                    "status": "failure",
+                    "message": f"Subject not found: {entry.subjectCode}",
+                },
+            )
+
+        latest = await get_latest_mark_for_subject(student.id, subject.id)
+        if not latest:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={
+                    "status": "failure",
+                    "message": f"No existing mark for subject {entry.subjectCode} to anchor grace insert.",
+                },
+            )
+
+        resolved.append((subject.id, latest.semesterCode, latest.examCode, entry))
+
+    try:
+        for subject_id, semester_code, exam_code, entry in resolved:
+            await upsert_grace_mark(
+                student_id=student.id,
+                subject_id=subject_id,
+                semester_code=semester_code,
+                exam_code=exam_code,
+                internal_marks=str(entry.internalMarks),
+                external_marks=str(entry.externalMarks),
+                total_marks=str(entry.totalMarks),
+                grades=entry.grades,
+                credits=float(entry.credits),
+            )
+    except Exception as e:
+        database_logger.error(f"Failed to insert grace marks for {roll_no}: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "status": "failure",
+                "message": "Failed to record grace marks. Please try again.",
+            },
+        )
+
+    invalidate_all_cache(roll_no)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "success",
+            "rollNumber": roll_no,
+            "inserted": len(resolved),
+        },
+    )
+
+
+async def update_proof_status(app, proof_id: str, payload: ProofStatusUpdate):
+    """Set a grace-marks proof's review status to `approved` or `rejected`.
+
+    Returns 404 when the id is unknown. Pydantic enforces the status enum, so
+    invalid values are rejected by FastAPI before this function runs.
+    """
+    row = await get_grace_marks_proof_by_id(proof_id)
+    if not row:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "status": "failure",
+                "message": "Grace-marks proof not found.",
+            },
+        )
+
+    try:
+        updated = await update_grace_marks_proof_status(proof_id, payload.status)
+    except Exception as e:
+        database_logger.error(
+            f"Failed to update grace-marks proof status for {proof_id}: {e}"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "status": "failure",
+                "message": "Failed to update status. Please try again.",
+            },
+        )
+
+    if not updated:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "status": "failure",
+                "message": "Grace-marks proof not found.",
+            },
+        )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "success",
+            "id": updated.id,
+            "rollNumber": updated.rollNumber,
+            "newStatus": updated.status,
+            "updatedAt": updated.updatedAt.isoformat(),
         },
     )
 

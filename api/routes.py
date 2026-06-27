@@ -13,7 +13,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
 from config.rateLimiter import limiter
-from database.models import PushSub
+from database.models import GraceMarksPayload, ProofStatusUpdate, PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
 from service.getClassResults import fetch_class_results
@@ -234,6 +234,54 @@ def create_routes(app: FastAPI):
         proof_id: str,
     ):
         return await grace_marks_service.get_proof_with_backlogs(app, proof_id)
+
+    @router.patch(
+        "/api/grace-marks/proofs/{proof_id}/status",
+        summary="Update grace-marks proof review status (admin)",
+        description=(
+            "Sets the `status` of a `grace_marks_proof` row to `approved` or "
+            "`rejected`. Requires `x-api-key` matching `GRACE_MARKS_ADMIN_KEY`. "
+            "Returns 404 if the proof id is unknown. Body: "
+            "`{\"status\": \"approved\" | \"rejected\"}`. Per-IP rate limit: "
+            "10/minute."
+        ),
+        tags=["Results"],
+        include_in_schema=False,
+        dependencies=[Depends(require_api_key)],
+    )
+    @limiter.limit("10/minute")
+    async def update_grace_marks_proof_status_route(
+        request: Request,
+        proof_id: str,
+        payload: ProofStatusUpdate,
+    ):
+        return await grace_marks_service.update_proof_status(app, proof_id, payload)
+
+    @router.post(
+        "/api/grace-marks/marks",
+        summary="Insert grace-marks rows for a student (admin)",
+        description=(
+            "Inserts one `mark` row per supplied subject with `graceMarks=true`, "
+            "`rcrv=false`. For each subject the `semesterCode` and `examCode` are "
+            "copied from the student's most-recent existing mark for that subject "
+            "(the payload's `semesterCode` is accepted but ignored). Requires "
+            "`x-api-key` matching `GRACE_MARKS_ADMIN_KEY`. Returns 404 if the "
+            "roll number is unknown or any subjectCode has no prior mark to "
+            "anchor to — in that case nothing is inserted. Re-running the same "
+            "payload upserts (updates) the existing grace row in place. After a "
+            "successful write the student's Redis caches are invalidated. "
+            "Per-IP rate limit: 10/minute."
+        ),
+        tags=["Results"],
+        include_in_schema=False,
+        dependencies=[Depends(require_api_key)],
+    )
+    @limiter.limit("10/minute")
+    async def apply_grace_marks_route(
+        request: Request,
+        payload: GraceMarksPayload,
+    ):
+        return await grace_marks_service.apply_grace_marks(app, payload)
 
     @router.get(
         "/api/getClassResults",

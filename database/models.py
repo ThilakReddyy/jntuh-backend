@@ -1,4 +1,4 @@
-from typing import Any, List, TypedDict
+from typing import Any, List, Literal, TypedDict
 from prisma.models import student, mark
 from pydantic import BaseModel
 
@@ -19,6 +19,25 @@ class PushSub(BaseModel):
     anon_id: str
     roll_number: str | None = None
     subscription: dict[str, Any]
+
+
+class GraceMarkEntry(BaseModel):
+    subjectCode: str
+    semesterCode: str
+    internalMarks: int
+    externalMarks: int
+    totalMarks: int
+    grades: str
+    credits: float
+
+
+class GraceMarksPayload(BaseModel):
+    rollNumber: str
+    marks: list[GraceMarkEntry]
+
+
+class ProofStatusUpdate(BaseModel):
+    status: Literal["approved", "rejected"]
 
 
 def studentDetailsModel(details: student) -> StudentDetails:

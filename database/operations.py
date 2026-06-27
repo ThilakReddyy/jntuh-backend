@@ -348,6 +348,61 @@ async def save_grace_marks_proof(
     )
 
 
+async def get_latest_mark_for_subject(student_id: str, subject_id: str):
+    return await prismaConnection.prisma.mark.find_first(
+        where={"studentId": student_id, "subjectId": subject_id},
+        order=[{"examCode": "desc"}],
+    )
+
+
+async def upsert_grace_mark(
+    *,
+    student_id: str,
+    subject_id: str,
+    semester_code: str,
+    exam_code: str,
+    internal_marks: str,
+    external_marks: str,
+    total_marks: str,
+    grades: str,
+    credits: float,
+):
+    return await prismaConnection.prisma.mark.upsert(
+        where={
+            "studentId_semesterCode_examCode_subjectId_rcrv_graceMarks": {
+                "studentId": student_id,
+                "semesterCode": semester_code,
+                "examCode": exam_code,
+                "subjectId": subject_id,
+                "rcrv": False,
+                "graceMarks": True,
+            }
+        },
+        data={
+            "create": {
+                "studentId": student_id,
+                "subjectId": subject_id,
+                "semesterCode": semester_code,
+                "examCode": exam_code,
+                "internalMarks": internal_marks,
+                "externalMarks": external_marks,
+                "totalMarks": total_marks,
+                "grades": grades,
+                "credits": credits,
+                "rcrv": False,
+                "graceMarks": True,
+            },
+            "update": {
+                "internalMarks": internal_marks,
+                "externalMarks": external_marks,
+                "totalMarks": total_marks,
+                "grades": grades,
+                "credits": credits,
+            },
+        },
+    )
+
+
 async def get_pending_grace_marks_proofs():
     where: GraceMarksProofWhereInput = {"status": "pending"}
     return await prismaConnection.prisma.gracemarksproof.find_many(
@@ -357,9 +412,7 @@ async def get_pending_grace_marks_proofs():
     )
 
 
-async def list_grace_marks_proofs(
-    limit: int, offset: int, status: str | None
-):
+async def list_grace_marks_proofs(limit: int, offset: int, status: str | None):
     where: GraceMarksProofWhereInput = {}
     if status:
         where["status"] = status
@@ -377,6 +430,13 @@ async def list_grace_marks_proofs(
 async def get_grace_marks_proof_by_id(proof_id: str):
     return await prismaConnection.prisma.gracemarksproof.find_unique(
         where={"id": proof_id},
+    )
+
+
+async def update_grace_marks_proof_status(proof_id: str, new_status: str):
+    return await prismaConnection.prisma.gracemarksproof.update(
+        where={"id": proof_id},
+        data={"status": new_status},
     )
 
 
