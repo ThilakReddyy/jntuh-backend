@@ -15,6 +15,7 @@ from config.redisConnection import redisConnection
 from config.connection import prismaConnection
 from config.settings import RABBITMQ_URL
 from utils.logger import logger
+from utils.mcpMetrics import instrument_mcp
 
 
 @asynccontextmanager
@@ -131,3 +132,4 @@ mcp = FastApiMCP(
     ],
 )
 mcp.mount_http()
+instrument_mcp(mcp)
