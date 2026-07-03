@@ -135,3 +135,32 @@ model GraceMarksProof {
   @@index([rollNumber])
   @@map("grace_marks_proof")
 }
+
+model AcademicCalendar {
+  id           String   @id @default(uuid())
+  academicYear String
+  degree       String
+  studyYear    String
+  title        String
+  link         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([academicYear])
+  @@index([degree])
+  @@map("academic_calendar")
+}
+
+model Syllabus {
+  id         String   @id @default(uuid())
+  degree     String
+  regulation String
+  category   String
+  title      String
+  link       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([degree, regulation])
+  @@map("syllabus")
+}

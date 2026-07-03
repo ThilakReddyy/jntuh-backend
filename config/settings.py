@@ -54,8 +54,12 @@ GRACE_MARKS_PROOF_ALLOWED_TYPES = {
 NOTIFICATIONS_EXPIRY_TIME = 1800
 EXPIRY_TIME = 1200
 FIVE_MINUTE_EXPIRY = 300
+# Calendars / syllabus change rarely — cache the built trees for a day.
+CONTENT_EXPIRY_TIME = 86400
 NOTIFICATIONS_REDIS_KEY = "notificationsi"
 LATEST_NOTIFICATIONS_REDIS_KEY = "latest_notifications"
+CALENDARS_REDIS_KEY = "academic_calendars_tree"
+SYLLABUS_REDIS_KEY = "syllabus_tree"
 REDIS_URL_KEY = "url"
 SEMESTERS = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2"]
 RABBITMQ_MAX_MESSAGES = 4000

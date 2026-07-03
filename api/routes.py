@@ -21,6 +21,7 @@ from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
 from service.hardrefresh import fetch_results_using_hard_refresh
+from service.contentService import getCalendars, getSyllabus
 from service.notificationService import (
     getLatestNotifications,
     notification,
@@ -364,6 +365,35 @@ def create_routes(app: FastAPI):
     )
     async def get_latest_notifications():
         return await getLatestNotifications()
+
+    @router.get(
+        "/api/calendars",
+        operation_id="get_calendars",
+        summary="Fetch academic calendars",
+        description=(
+            "Returns JNTUH academic calendars as a nested tree keyed by "
+            "academic year → degree → study year → { calendar title: PDF link }. "
+            "Sourced from the `academic_calendar` table and cached in Redis."
+        ),
+        tags=["Content"],
+    )
+    async def get_calendars_route():
+        return await getCalendars()
+
+    @router.get(
+        "/api/syllabus",
+        operation_id="get_syllabus",
+        summary="Fetch syllabus",
+        description=(
+            "Returns the JNTUH syllabus as a nested tree keyed by degree → "
+            "regulation → category → [ { title, link } ]. Degrees without a "
+            "regulation collapse to degree → category → [...]. Sourced from the "
+            "`syllabus` table and cached in Redis."
+        ),
+        tags=["Content"],
+    )
+    async def get_syllabus_route():
+        return await getSyllabus()
 
     @router.post(
         "/save-subscription",
