@@ -75,6 +75,10 @@ Prisma schema (`prisma/schema.prisma`):
 
 `main.py` mounts an MCP server via `FastApiMCP` at `/mcp` (`mount_http()`), exposing only the read-only `get_*` / `check_*` operation IDs explicitly listed in `include_operations`. Destructive endpoints (`hardRefresh`, `save-subscription`, etc.) are intentionally not exposed. `/connect` serves `static/mcp_setup.html` as a connector setup guide.
 
+### Docs in production
+
+Setting `ENVIRONMENT=production` disables `/docs`, `/redoc`, and `/openapi.json` (`IS_PRODUCTION` in `config/settings.py`), and `/` redirects to `/connect` instead of `/docs`. Unset or any other value keeps docs enabled. FastApiMCP is unaffected — it reads the schema via `app.openapi()`, not the HTTP route.
+
 ### Observability
 
 - Prometheus instrumentation auto-mounted at `/metrics` via `prometheus_fastapi_instrumentator`.
@@ -87,7 +91,7 @@ Prisma schema (`prisma/schema.prisma`):
 
 ### API header guard
 
-`config/apiHeaderGuard.py:ApiKeyHeaderMiddleware` rejects any request without a non-empty `X-Api-Key` header (403) before it reaches the rate limiter or a route. If the optional `API_ACCESS_KEY` env var is set (it is, in `.env`), the header value must match it exactly; unset means presence-only. The web frontend sends the same value from its `NEXT_PUBLIC_API_KEY` env var via an axios interceptor in `JNTUHRESULTS-WEB/lib/apiClient.ts` — the two must be kept in sync. Requests whose User-Agent starts with `okhttp/` or `Dalvik/` (the JNTUH Connect Android app's Retrofit client and its raw health probe) bypass the header check entirely — the app sends no custom header by design. Exempt: `/mcp`, `/metrics`, `/docs`, `/redoc`, `/openapi.json`, `/`, `/connect`, and `OPTIONS` preflights. Note `/api/health` is NOT exempt — external uptime monitors must send the header or the path must be added to `GUARD_EXEMPT_PATH_PREFIXES`. Added between SlowAPI and CORS in `main.py` so CORS stays outermost.
+`config/apiHeaderGuard.py:ApiKeyHeaderMiddleware` rejects any request without a non-empty `X-Api-Key` header (403) before it reaches the rate limiter or a route. If the optional `API_ACCESS_KEY` env var is set (it is, in `.env`), the header value must match it exactly; unset means presence-only. The web frontend sends the same value from its `NEXT_PUBLIC_API_KEY` env var via an axios interceptor in `JNTUHRESULTS-WEB/lib/apiClient.ts` — the two must be kept in sync. Requests whose User-Agent starts with `okhttp/` or `Dalvik/` (the JNTUH Connect Android app's Retrofit client and its raw health probe) bypass the header check entirely — the app sends no custom header by design. Exempt: `/mcp`, `/metrics`, `/docs`, `/redoc`, `/openapi.json`, `/`, `/connect`, and `OPTIONS` preflights. Note `/api/health` is NOT exempt — external uptime monitors must send the header or the path must be added to `GUARD_EXEMPT_PATH_PREFIXES`. Added between SlowAPI and CORS in `main.py` so CORS stays outermost. FastApiMCP executes tool calls by re-entering the app over an in-process ASGI transport, so those hit this guard too — `main.py` passes it a custom `http_client` whose default headers carry the key; don't remove it or every MCP tool call 403s.
 
 ## Conventions worth knowing
 

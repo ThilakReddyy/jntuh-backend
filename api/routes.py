@@ -13,6 +13,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
 from config.rateLimiter import limiter
+from config.settings import IS_PRODUCTION
 from database.models import GraceMarksPayload, ProofStatusUpdate, PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
@@ -47,7 +48,8 @@ def create_routes(app: FastAPI):
 
     @router.get("/", include_in_schema=False)
     async def index():
-        return RedirectResponse(url="/docs")
+        # Docs are disabled in production, so land on the MCP setup page there.
+        return RedirectResponse(url="/connect" if IS_PRODUCTION else "/docs")
 
     @router.get("/connect", include_in_schema=False)
     async def mcp_connect():

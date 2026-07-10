@@ -46,6 +46,9 @@ GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
 # Optional shared secret for the X-Api-Key header guard. When set, the header
 # value must match exactly; when unset, any non-empty value passes.
 API_ACCESS_KEY = os.getenv("API_ACCESS_KEY") or None
+# Set ENVIRONMENT=production to disable the interactive docs (/docs, /redoc,
+# /openapi.json). Anything else (or unset) keeps them enabled.
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 GRACE_MARKS_PROOF_MAX_BYTES = 5 * 1024 * 1024
 GRACE_MARKS_PROOF_ALLOWED_TYPES = {
     "application/pdf",

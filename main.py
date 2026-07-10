@@ -1,4 +1,5 @@
 import aio_pika
+import httpx
 import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,11 +11,11 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from api.routes import create_routes
-from config.apiHeaderGuard import ApiKeyHeaderMiddleware
+from config.apiHeaderGuard import API_KEY_HEADER, ApiKeyHeaderMiddleware
 from config.rateLimiter import ExemptingSlowAPIMiddleware, limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
-from config.settings import RABBITMQ_URL
+from config.settings import API_ACCESS_KEY, IS_PRODUCTION, RABBITMQ_URL
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
 
@@ -61,7 +62,13 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app = FastAPI(lifespan=lifespan)
+# Interactive docs are disabled in production (ENVIRONMENT=production).
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+)
 
 app.openapi = custom_openapi
 
@@ -115,8 +122,21 @@ async def log_request(request, call_next):
 routes = create_routes(app)
 app.include_router(routes)
 
+# FastApiMCP executes tool calls by re-entering the app over an in-process
+# ASGI transport, so they pass through ApiKeyHeaderMiddleware like any other
+# request — this client attaches the X-Api-Key header they need to pass it.
+# Mirrors fastapi_mcp's default client (base_url/transport) with a longer
+# timeout for scrape-backed endpoints.
+mcp_http_client = httpx.AsyncClient(
+    transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+    base_url="http://apiserver",
+    timeout=30.0,
+    headers={API_KEY_HEADER: API_ACCESS_KEY or "mcp-internal"},
+)
+
 mcp = FastApiMCP(
     app,
+    http_client=mcp_http_client,
     name="JNTUH Results MCP",
     description=(
         "MCP tools for querying JNTUH student academic data: full attempt history "
