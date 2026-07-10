@@ -21,16 +21,14 @@ Exempt from the check:
   outermost and normally answers them, this is just a defensive skip.
 """
 
-import os
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-API_KEY_HEADER = "X-Api-Key"
+# Loaded via config.settings so load_dotenv() has run before we read the env.
+from config.settings import API_ACCESS_KEY
 
-# When set, the header value must equal this; when unset, presence is enough.
-API_ACCESS_KEY = os.getenv("API_ACCESS_KEY") or None
+API_KEY_HEADER = "X-Api-Key"
 
 GUARD_EXEMPT_PATH_PREFIXES = ("/mcp", "/metrics", "/docs", "/redoc", "/openapi.json")
 GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect")
@@ -61,7 +59,7 @@ class ApiKeyHeaderMiddleware(BaseHTTPMiddleware):
         if not provided or (API_ACCESS_KEY and provided != API_ACCESS_KEY):
             return JSONResponse(
                 status_code=403,
-                content={"detail": f"Missing or invalid {API_KEY_HEADER} header"},
+                content={"detail": "Authentication failed"},
             )
 
         return await call_next(request)

@@ -43,6 +43,9 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL") or None
 S3_PUBLIC_URL_BASE = os.getenv("S3_PUBLIC_URL_BASE") or None
 GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
+# Optional shared secret for the X-Api-Key header guard. When set, the header
+# value must match exactly; when unset, any non-empty value passes.
+API_ACCESS_KEY = os.getenv("API_ACCESS_KEY") or None
 GRACE_MARKS_PROOF_MAX_BYTES = 5 * 1024 * 1024
 GRACE_MARKS_PROOF_ALLOWED_TYPES = {
     "application/pdf",
