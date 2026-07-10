@@ -10,6 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from api.routes import create_routes
+from config.apiHeaderGuard import ApiKeyHeaderMiddleware
 from config.rateLimiter import ExemptingSlowAPIMiddleware, limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
@@ -70,6 +71,12 @@ app.openapi = custom_openapi
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(ExemptingSlowAPIMiddleware)
+
+# Require the X-Api-Key header on every API route (exempt: /mcp, /metrics,
+# docs, static pages — see config/apiHeaderGuard.py). Added after slowapi so
+# rejected requests never touch the rate limiter, and before CORS so 403s
+# still carry the CORS headers the browser needs.
+app.add_middleware(ApiKeyHeaderMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

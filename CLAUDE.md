@@ -85,6 +85,10 @@ Prisma schema (`prisma/schema.prisma`):
 
 `config/rateLimiter.py` defines a shared `slowapi` `Limiter` keyed by the real client IP (resolved from `CF-Connecting-IP` → `X-Forwarded-For` → socket peer, in that order — required because the app runs behind Cloudflare). Default limit is `30/minute`, storage is Redis with in-memory fallback, and it fails open on Redis errors. Wired into `main.py` via `ExemptingSlowAPIMiddleware` (also defined in `rateLimiter.py`), which short-circuits paths under `EXEMPT_PATH_PREFIXES` — currently `/mcp`, since slowapi 0.1.10 does not actually auto-skip mounted sub-apps despite the docs. SlowAPI is added before CORS so CORS sits outermost and 429 responses still carry `Access-Control-Allow-Origin`.
 
+### API header guard
+
+`config/apiHeaderGuard.py:ApiKeyHeaderMiddleware` rejects any request without a non-empty `X-Api-Key` header (403) before it reaches the rate limiter or a route. If the optional `API_ACCESS_KEY` env var is set, the header value must match it exactly; unset means presence-only. Requests whose User-Agent starts with `okhttp/` or `Dalvik/` (the JNTUH Connect Android app's Retrofit client and its raw health probe) bypass the header check entirely — the app sends no custom header by design. Exempt: `/mcp`, `/metrics`, `/docs`, `/redoc`, `/openapi.json`, `/`, `/connect`, and `OPTIONS` preflights. Note `/api/health` is NOT exempt — external uptime monitors must send the header or the path must be added to `GUARD_EXEMPT_PATH_PREFIXES`. Added between SlowAPI and CORS in `main.py` so CORS stays outermost.
+
 ## Conventions worth knowing
 
 - Roll numbers are validated by `utils/helpers.py:validateRollNo` (10 chars, alphanumeric, upper-cased). Always go through this dependency rather than hand-validating.
