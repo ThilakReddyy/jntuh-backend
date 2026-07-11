@@ -6,6 +6,7 @@ from fastapi import (
     FastAPI,
     File,
     Header,
+    HTTPException,
     Request,
     UploadFile,
     status,
@@ -14,6 +15,13 @@ from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
 from config.rateLimiter import limiter
 from config.settings import IS_PRODUCTION
+from chatbot.errors import (
+    ChatbotNotConfiguredError,
+    ChatbotResponseError,
+    ChatbotUpstreamError,
+    ChatbotUpstreamTimeoutError,
+)
+from chatbot.schemas import ChatRequest, ChatResponse
 from database.models import GraceMarksPayload, ProofStatusUpdate, PushSub
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
@@ -398,6 +406,28 @@ def create_routes(app: FastAPI):
     )
     async def get_syllabus_route():
         return await getSyllabus()
+
+    @router.post(
+        "/api/chatbot",
+        response_model=ChatResponse,
+        summary="Chat with the JNTUH results assistant",
+        description=(
+            "Runs a bounded agent that may use only the read-only operations "
+            "exposed by this application's MCP allowlist. Prior user/assistant "
+            "messages are optional. Per-IP rate limit: 10/minute."
+        ),
+        tags=["Chatbot"],
+    )
+    @limiter.limit("10/minute")
+    async def chatbot(request: Request, payload: ChatRequest):
+        try:
+            return await request.app.state.chatbot_service.chat(payload)
+        except ChatbotNotConfiguredError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ChatbotUpstreamTimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except (ChatbotResponseError, ChatbotUpstreamError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     @router.post(
         "/save-subscription",

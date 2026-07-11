@@ -10,12 +10,27 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from chatbot.provider import OpenAICompatibleProvider
+from chatbot.service import ChatbotService
+from chatbot.tools import MCPToolGateway
 from api.routes import create_routes
 from config.apiHeaderGuard import API_KEY_HEADER, ApiKeyHeaderMiddleware
+from config.mcp import MCP_INCLUDE_OPERATIONS
 from config.rateLimiter import ExemptingSlowAPIMiddleware, limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
-from config.settings import API_ACCESS_KEY, IS_PRODUCTION, RABBITMQ_URL
+from config.settings import (
+    API_ACCESS_KEY,
+    CHATBOT_API_KEY,
+    CHATBOT_BASE_URL,
+    CHATBOT_MAX_ITERATIONS,
+    CHATBOT_MAX_OUTPUT_TOKENS,
+    CHATBOT_MAX_TOOL_CALLS,
+    CHATBOT_MODEL,
+    CHATBOT_TIMEOUT_SECONDS,
+    IS_PRODUCTION,
+    RABBITMQ_URL,
+)
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
 
@@ -146,17 +161,19 @@ mcp = FastApiMCP(
         "result notifications. Read-only — destructive endpoints are intentionally "
         "not exposed."
     ),
-    include_operations=[
-        "get_all_result",
-        "get_academic_result",
-        "get_backlogs",
-        "get_credits_checker",
-        "get_result_contrast",
-        "check_grace_marks_eligibility",
-        "get_class_results",
-        "get_notifications",
-        "get_latest_notifications",
-    ],
+    include_operations=list(MCP_INCLUDE_OPERATIONS),
+)
+app.state.chatbot_service = ChatbotService(
+    OpenAICompatibleProvider(
+        api_key=CHATBOT_API_KEY,
+        base_url=CHATBOT_BASE_URL,
+        model=CHATBOT_MODEL,
+        timeout_seconds=CHATBOT_TIMEOUT_SECONDS,
+        max_output_tokens=CHATBOT_MAX_OUTPUT_TOKENS,
+    ),
+    MCPToolGateway(mcp),
+    max_iterations=CHATBOT_MAX_ITERATIONS,
+    max_tool_calls=CHATBOT_MAX_TOOL_CALLS,
 )
 mcp.mount_http()
 instrument_mcp(mcp)

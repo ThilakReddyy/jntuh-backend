@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 from dotenv import load_dotenv
@@ -46,6 +47,42 @@ GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
 # Optional shared secret for the X-Api-Key header guard. When set, the header
 # value must match exactly; when unset, any non-empty value passes.
 API_ACCESS_KEY = os.getenv("API_ACCESS_KEY") or None
+# Optional OpenAI-compatible chatbot provider. These are deliberately not in
+# required_env_vars so existing deployments continue to start without them.
+CHATBOT_API_KEY = os.getenv("CHATBOT_API_KEY") or None
+CHATBOT_BASE_URL = os.getenv("CHATBOT_BASE_URL") or None
+CHATBOT_MODEL = os.getenv("CHATBOT_MODEL") or None
+
+
+def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        return min(max(int(os.getenv(name, str(default))), minimum), maximum)
+    except ValueError:
+        logger.warning(f"Invalid {name}; using default value {default}")
+        return default
+
+
+def _bounded_float_env(
+    name: str, default: float, minimum: float, maximum: float
+) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+        if not math.isfinite(value):
+            raise ValueError
+        return min(max(value, minimum), maximum)
+    except ValueError:
+        logger.warning(f"Invalid {name}; using default value {default}")
+        return default
+
+
+CHATBOT_TIMEOUT_SECONDS = _bounded_float_env(
+    "CHATBOT_TIMEOUT_SECONDS", 30.0, 1.0, 120.0
+)
+CHATBOT_MAX_ITERATIONS = _bounded_int_env("CHATBOT_MAX_ITERATIONS", 4, 2, 6)
+CHATBOT_MAX_TOOL_CALLS = _bounded_int_env("CHATBOT_MAX_TOOL_CALLS", 6, 1, 10)
+CHATBOT_MAX_OUTPUT_TOKENS = _bounded_int_env(
+    "CHATBOT_MAX_OUTPUT_TOKENS", 800, 100, 2000
+)
 # Set ENVIRONMENT=production to disable the interactive docs (/docs, /redoc,
 # /openapi.json). Anything else (or unset) keeps them enabled.
 IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
