@@ -210,8 +210,14 @@ def _serialize_proof(row) -> dict:
     }
 
 
-async def get_proof_with_backlogs(app, proof_id: str):
+async def get_proof_with_backlogs(app, proof_id: str, admin_key):
     """Single proof view: row metadata + 1-hour presigned GET URL + the student's backlog payload."""
+
+    if not admin_key or not hmac.compare_digest(admin_key, GRACE_MARKS_ADMIN_KEY or ""):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"status": "failure", "message": "Invalid admin key."},
+        )
     row = await get_grace_marks_proof_by_id(proof_id)
     if not row:
         return JSONResponse(

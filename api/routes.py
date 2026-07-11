@@ -30,7 +30,7 @@ from service.notificationService import (
 )
 from service.subscriptionService import save_subscription
 from service import grace_marks_service
-from utils.auth import require_api_key
+from utils.auth import require_admin_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
 
 
@@ -229,14 +229,16 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
         include_in_schema=False,
-        dependencies=[Depends(require_api_key)],
     )
     @limiter.limit("10/minute")
     async def get_grace_marks_proof_route(
         request: Request,
         proof_id: str,
+        x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
     ):
-        return await grace_marks_service.get_proof_with_backlogs(app, proof_id)
+        return await grace_marks_service.get_proof_with_backlogs(
+            app, proof_id, x_admin_key
+        )
 
     @router.patch(
         "/api/grace-marks/proofs/{proof_id}/status",
@@ -245,12 +247,12 @@ def create_routes(app: FastAPI):
             "Sets the `status` of a `grace_marks_proof` row to `approved` or "
             "`rejected`. Requires `x-api-key` matching `GRACE_MARKS_ADMIN_KEY`. "
             "Returns 404 if the proof id is unknown. Body: "
-            "`{\"status\": \"approved\" | \"rejected\"}`. Per-IP rate limit: "
+            '`{"status": "approved" | "rejected"}`. Per-IP rate limit: '
             "10/minute."
         ),
         tags=["Results"],
         include_in_schema=False,
-        dependencies=[Depends(require_api_key)],
+        dependencies=[Depends(require_admin_key)],
     )
     @limiter.limit("10/minute")
     async def update_grace_marks_proof_status_route(
@@ -277,7 +279,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
         include_in_schema=False,
-        dependencies=[Depends(require_api_key)],
+        dependencies=[Depends(require_admin_key)],
     )
     @limiter.limit("10/minute")
     async def apply_grace_marks_route(
