@@ -1,4 +1,5 @@
 import aio_pika
+import asyncio
 import httpx
 import time
 from fastapi import FastAPI
@@ -31,6 +32,7 @@ from config.settings import (
     IS_PRODUCTION,
     RABBITMQ_URL,
 )
+from scrapers.resultNotificationScraper import refresh_notifications_periodically
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
 
@@ -38,16 +40,30 @@ from utils.mcpMetrics import instrument_mcp
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manages the lifespan of the application, ensuring RabbitMQ connection is opened and closed properly."""
+    notification_refresh_task = None
+
     try:
         logger.info("Starting FastAPI & RabbitMQ Consumer...")
         app.state.rabbitmq_connection = await aio_pika.connect_robust(RABBITMQ_URL)
         await prismaConnection.connect()
         redisConnection.connect()
 
+        notification_refresh_task = asyncio.create_task(
+            refresh_notifications_periodically(),
+            name="notification-refresh-scheduler",
+        )
+
         yield
 
         logger.info("Shutting down...")
     finally:
+        if notification_refresh_task is not None:
+            notification_refresh_task.cancel()
+            try:
+                await notification_refresh_task
+            except asyncio.CancelledError:
+                pass
+
         if hasattr(app.state, "rabbitmq_connection"):
             await app.state.rabbitmq_connection.close()
 
