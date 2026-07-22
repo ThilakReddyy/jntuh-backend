@@ -60,6 +60,15 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
                     "update": {},
                 },
             )
+            await prismaConnection.prisma.subject.update_many(
+                where={
+                    "subjectCode": subject["subjectCode"],
+                    "subjectName": "",
+                },
+                data={
+                    "subjectName": subject["subjectName"],
+                },
+            )
             subject_id = subject_record.id
             await prismaConnection.prisma.mark.upsert(
                 where={
