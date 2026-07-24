@@ -35,11 +35,6 @@ from config.settings import (
 from scrapers.resultNotificationScraper import refresh_notifications_periodically
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
-from utils.request_logging import (
-    build_access_log,
-    get_request_id,
-    serialize_access_log,
-)
 
 
 @asynccontextmanager
@@ -132,7 +127,6 @@ app.add_middleware(
     ],  # Allows all origins (Use specific domains in production)
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
-    expose_headers=["X-Request-ID"],
 )
 
 # Initialize Prometheus instrumentator
@@ -146,30 +140,13 @@ instrumentator.instrument(app).expose(app, include_in_schema=False)
 @app.middleware("http")
 async def log_request(request, call_next):
     start = time.perf_counter()
-    request_id = get_request_id(request)
-    request.state.request_id = request_id
-    try:
-        response = await call_next(request)
-    except Exception as error:
-        event = build_access_log(
-            request,
-            request_id=request_id,
-            started_at=start,
-            status_code=500,
-            exception_type=type(error).__name__,
-        )
-        logger.exception(serialize_access_log(event))
-        raise
-
-    response.headers["X-Request-ID"] = request_id
-    event = build_access_log(
-        request,
-        request_id=request_id,
-        started_at=start,
-        status_code=response.status_code,
-        response_content_length=response.headers.get("content-length"),
+    response = await call_next(request)
+    duration = (time.perf_counter() - start) * 1000
+    logger.info(
+        f"{request.client.host} {request.method} {request.url.path} "
+        f"→ {response.status_code} [{duration:.2f} ms]"
     )
-    logger.info(serialize_access_log(event))
+
     return response
 
 
