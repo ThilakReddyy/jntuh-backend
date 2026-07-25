@@ -9,6 +9,7 @@ from config.settings import (
     NOTIFICATIONS_REDIS_KEY,
 )
 from database.operations import save_exam_codes
+from subscriptions.firebase_notification import broadcast_result_notifications
 from utils.helpers import send_telegram_notification
 from utils.logger import logger
 
@@ -230,7 +231,7 @@ async def refresh_notifications():
         new_exams = await save_exam_codes(results)
         if new_exams:
             send_telegram_notification(new_exams)
-            # await broadcast_result_notifications(new_exams)
+            await broadcast_result_notifications(new_exams)
 
     except Exception as e:
         logger.info(f"Error while fetching notifications:{e}")
