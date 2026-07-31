@@ -16,6 +16,7 @@ This FastAPI-based service provides access to **student results, academic record
 ![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=for-the-badge&logo=Cloudflare&logoColor=white)
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=Prometheus&logoColor=white)
 ![Grafana](https://img.shields.io/badge/grafana-%23F46800.svg?style=for-the-badge&logo=grafana&logoColor=white)
+[![MCP](https://img.shields.io/badge/Model_Context_Protocol-000000?style=for-the-badge&logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io/)
 
 
 
@@ -27,6 +28,7 @@ This FastAPI-based service provides access to **student results, academic record
 ✅ **Check backlogs** (pending subjects)  
 ✅ **Uses Redis caching** for optimized performance  
 ✅ **RabbitMQ integration** for event-driven messaging  
+✅ **Read-only MCP server** for AI assistants and compatible clients\
 ✅ **Docker support** for easy deployment  
 
 
@@ -38,6 +40,7 @@ This FastAPI-based service provides access to **student results, academic record
 - **Messaging Queue**: RabbitMQ  
 - **Containerization**: Docker
 - **Monitoring**: Prometheus, Grafana
+- **AI Integration**: Model Context Protocol (MCP)
 
 ## 🏗 System Architecture
 
@@ -83,6 +86,42 @@ This diagram outlines the flow of requests and data within the system.
 
 Once the application is running, access the API documentation at http://localhost:8000/docs. This interactive documentation provides details about each endpoint and allows you to test them directly.
 
+## MCP Tools
+
+The application exposes a read-only [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server at:
+
+```text
+https://jntuhresults.dhethi.com/mcp
+```
+
+Open `/connect` for setup instructions, or add the server to an MCP-compatible client:
+
+```json
+{
+  "mcpServers": {
+    "jntuh-results": {
+      "url": "https://jntuhresults.dhethi.com/mcp"
+    }
+  }
+}
+```
+
+Available tools:
+
+| Tool | Description |
+| --- | --- |
+| `get_all_result` | Retrieve every exam attempt for a student. |
+| `get_academic_result` | Retrieve the consolidated best-attempt academic record. |
+| `get_backlogs` | Retrieve pending subjects grouped by semester. |
+| `get_credits_checker` | Compare earned and required credits for each academic year. |
+| `get_result_contrast` | Compare the results of two students. |
+| `check_grace_marks_eligibility` | Check whether grace marks can clear eligible backlogs. |
+| `get_class_results` | Retrieve results for an entire class section. |
+| `get_notifications` | Retrieve result notifications using filters. |
+| `get_latest_notifications` | Retrieve the latest result notifications. |
+
+Only these query operations are exposed; destructive and administrative endpoints are not available through MCP.
+
 ## Contributing
 
   Contributions are welcome! Please follow these steps:
@@ -100,6 +139,3 @@ This project is licensed under the GPL-3.0 .
 ## Acknowledgements
 
 Special thanks to all contributors and the open-source community for their invaluable support.
-
-
-
