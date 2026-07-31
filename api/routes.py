@@ -22,7 +22,12 @@ from chatbot.errors import (
     ChatbotUpstreamTimeoutError,
 )
 from chatbot.schemas import ChatRequest, ChatResponse
-from database.models import GraceMarksPayload, ProofStatusUpdate, PushSub
+from database.models import (
+    GraceMarksPayload,
+    ProofStatusUpdate,
+    PushSub,
+    ResultDeviceSubscriptionPayload,
+)
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
 from service.getClassResults import fetch_class_results
@@ -36,7 +41,7 @@ from service.notificationService import (
     notification,
     refreshNotification,
 )
-from service.subscriptionService import save_subscription
+from service.subscriptionService import save_result_subscription, save_subscription
 from service import grace_marks_service
 from utils.auth import require_admin_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
@@ -438,6 +443,18 @@ def create_routes(app: FastAPI):
     )
     async def save_subscription_end_point(data: PushSub):
         return await save_subscription(data)
+
+    @router.post(
+        "/api/result-subscriptions",
+        status_code=status.HTTP_201_CREATED,
+        summary="Subscribe a device to one student's result updates",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def save_result_subscription_endpoint(
+        data: ResultDeviceSubscriptionPayload,
+    ):
+        return await save_result_subscription(data)
 
     @router.post(
         "/job",

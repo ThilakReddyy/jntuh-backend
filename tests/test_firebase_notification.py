@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from subscriptions.firebase_notification import (
     _build_result_message,
+    _build_student_result_message,
     broadcast_result_notifications,
 )
 from scrapers.resultNotificationScraper import refresh_notifications
@@ -23,6 +24,22 @@ def test_build_result_message_matches_android_notification_contract():
     assert message.data == {
         "destination": "updates",
         "link": "https://results.jntuh.ac.in/example",
+    }
+
+
+def test_build_student_result_message_targets_only_subscribed_tokens():
+    message = _build_student_result_message(
+        "20J21A0101", ["first-device-token", "second-device-token"]
+    )
+
+    assert message.tokens == ["first-device-token", "second-device-token"]
+    assert message.notification.title == "Your JNTUH results were updated"
+    assert message.notification.body == (
+        "New result records are available for 20J21A0101."
+    )
+    assert message.data == {
+        "destination": "student-result",
+        "rollNumber": "20J21A0101",
     }
 
 

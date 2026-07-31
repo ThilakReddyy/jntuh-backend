@@ -77,6 +77,21 @@ model AnonPushSubscription {
   @@map("anon_push_subscriptions")
 }
 
+model ResultDeviceSubscription {
+  id           String   @id @default(uuid())
+  deviceId     String   @db.Uuid
+  deviceToken  String
+  rollNumber   String
+  platform     String   @default("android")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([deviceId, rollNumber])
+  @@index([rollNumber])
+  @@index([deviceToken])
+  @@map("result_device_subscriptions")
+}
+
 model Job {
   id          String          @id @default(uuid())
   title       String

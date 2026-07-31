@@ -54,9 +54,7 @@ CHATBOT_BASE_URL = os.getenv("CHATBOT_BASE_URL") or None
 CHATBOT_MODEL = os.getenv("CHATBOT_MODEL") or None
 # Optional Firebase Admin configuration. The credential stays outside the
 # repository and is loaded lazily only when a new result notification is sent.
-GOOGLE_APPLICATION_CREDENTIALS = (
-    os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
-)
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID") or None
 FCM_RESULTS_TOPIC = os.getenv("FCM_RESULTS_TOPIC", "result-updates")
 

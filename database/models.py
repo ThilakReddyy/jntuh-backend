@@ -1,6 +1,6 @@
 from typing import Any, List, Literal, TypedDict
 from prisma.models import student, mark
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from config.branchDetails import get_branch_name
 from config.settings import SEMESTERS
@@ -19,6 +19,35 @@ class PushSub(BaseModel):
     anon_id: str
     roll_number: str | None = None
     subscription: dict[str, Any]
+
+
+class ResultDeviceSubscriptionPayload(BaseModel):
+    deviceId: str
+    deviceToken: str
+    rollNumber: str
+
+    @field_validator("deviceId")
+    @classmethod
+    def validate_device_id(cls, value: str) -> str:
+        from uuid import UUID
+
+        return str(UUID(value))
+
+    @field_validator("deviceToken")
+    @classmethod
+    def validate_device_token(cls, value: str) -> str:
+        token = value.strip()
+        if not token or len(token) > 512:
+            raise ValueError("Invalid Firebase device token")
+        return token
+
+    @field_validator("rollNumber")
+    @classmethod
+    def validate_roll_number(cls, value: str) -> str:
+        roll_number = value.strip().upper()
+        if len(roll_number) != 10 or not roll_number.isalnum():
+            raise ValueError("Roll number must be 10 alphanumeric characters")
+        return roll_number
 
 
 class GraceMarkEntry(BaseModel):

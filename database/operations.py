@@ -6,7 +6,7 @@ from collections import defaultdict
 from prisma.types import GraceMarksProofWhereInput, examcodesWhereInput
 from config.connection import prismaConnection
 from config.settings import RESULTS
-from database.models import PushSub
+from database.models import PushSub, ResultDeviceSubscriptionPayload
 from utils.helpers import format_date
 from utils.logger import database_logger
 
@@ -33,6 +33,7 @@ async def save_details(details):
 
 
 async def save_subject_and_marks(rollNumber, result, graceMarks=False):
+    inserted_count = 0
     try:
         student = await prismaConnection.prisma.student.find_unique(
             where={"rollNumber": rollNumber},
@@ -41,7 +42,7 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
             database_logger.error(
                 f"Database error while inserting student data: {rollNumber}"
             )
-            return
+            return inserted_count
 
         student_id = student.id
         exam_code = result["examCode"]
@@ -70,16 +71,22 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
                 },
             )
             subject_id = subject_record.id
+            mark_key = {
+                "studentId": student_id,
+                "semesterCode": semester_code,
+                "examCode": exam_code,
+                "subjectId": subject_id,
+                "rcrv": rcrv,
+                "graceMarks": graceMarks,
+            }
+            existing_mark = await prismaConnection.prisma.mark.find_unique(
+                where={
+                    "studentId_semesterCode_examCode_subjectId_rcrv_graceMarks": mark_key
+                }
+            )
             await prismaConnection.prisma.mark.upsert(
                 where={
-                    "studentId_semesterCode_examCode_subjectId_rcrv_graceMarks": {
-                        "studentId": student_id,
-                        "semesterCode": semester_code,
-                        "examCode": exam_code,
-                        "subjectId": subject_id,
-                        "rcrv": rcrv,
-                        "graceMarks": graceMarks,
-                    }
+                    "studentId_semesterCode_examCode_subjectId_rcrv_graceMarks": mark_key
                 },
                 data={
                     "create": {
@@ -97,11 +104,14 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
                     "update": {},
                 },
             )
+            if existing_mark is None:
+                inserted_count += 1
 
     except Exception as e:
         database_logger.error(
             f"Database error while inserting student marks: {rollNumber}:{e}"
         )
+    return inserted_count
 
 
 async def save_exam_codes(results):
@@ -162,9 +172,11 @@ async def save_to_database(results):
     rollNo = details["rollNo"]
     results = results["results"]
     await save_details(details)
+    inserted_count = 0
     for result in results:
-        await save_subject_and_marks(rollNo, result)
+        inserted_count += await save_subject_and_marks(rollNo, result)
     database_logger.info(f"Exam data and marks saved for student {rollNo}")
+    return inserted_count
 
 
 async def get_details(roll_number: str):
@@ -334,6 +346,43 @@ async def save_subscription_details(data: PushSub):
                 "subscription": subscription_str,
             },
         },
+    )
+
+
+async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload):
+    return await prismaConnection.prisma.resultdevicesubscription.upsert(
+        where={
+            "deviceId_rollNumber": {
+                "deviceId": data.deviceId,
+                "rollNumber": data.rollNumber,
+            }
+        },
+        data={
+            "update": {
+                "deviceToken": data.deviceToken,
+                "platform": "android",
+            },
+            "create": {
+                "deviceId": data.deviceId,
+                "deviceToken": data.deviceToken,
+                "rollNumber": data.rollNumber,
+                "platform": "android",
+            },
+        },
+    )
+
+
+async def get_result_device_subscriptions(roll_number: str):
+    return await prismaConnection.prisma.resultdevicesubscription.find_many(
+        where={"rollNumber": roll_number}
+    )
+
+
+async def delete_result_device_subscriptions(ids: list[str]):
+    if not ids:
+        return None
+    return await prismaConnection.prisma.resultdevicesubscription.delete_many(
+        where={"id": {"in": ids}}
     )
 
 

@@ -61,6 +61,61 @@ def _build_result_message(exam: Mapping[str, Any]) -> messaging.Message:
     )
 
 
+def _build_student_result_message(
+    roll_number: str, tokens: list[str]
+) -> messaging.MulticastMessage:
+    return messaging.MulticastMessage(
+        notification=messaging.Notification(
+            title="Your JNTUH results were updated",
+            body=f"New result records are available for {roll_number}.",
+        ),
+        data={
+            "destination": "student-result",
+            "rollNumber": roll_number,
+        },
+        tokens=tokens,
+    )
+
+
+async def notify_student_result_updated(roll_number: str) -> None:
+    """Notify only devices subscribed to this roll number."""
+    from database.operations import (
+        delete_result_device_subscriptions,
+        get_result_device_subscriptions,
+    )
+
+    subscriptions = await get_result_device_subscriptions(roll_number)
+    if not subscriptions:
+        return
+
+    invalid_ids: list[str] = []
+    app = _get_firebase_app()
+    for batch_start in range(0, len(subscriptions), _FCM_BATCH_SIZE):
+        batch = subscriptions[batch_start : batch_start + _FCM_BATCH_SIZE]
+        response = await asyncio.to_thread(
+            messaging.send_each_for_multicast,
+            _build_student_result_message(
+                roll_number, [record.deviceToken for record in batch]
+            ),
+            app=app,
+        )
+        for record, send_response in zip(batch, response.responses):
+            if send_response.success:
+                continue
+            error_code = getattr(send_response.exception, "code", "")
+            if error_code in {
+                "messaging/registration-token-not-registered",
+                "messaging/invalid-registration-token",
+            }:
+                invalid_ids.append(record.id)
+            logger.error(
+                f"Firebase student result notification failed for {roll_number}: "
+                f"{send_response.exception}"
+            )
+
+    await delete_result_device_subscriptions(invalid_ids)
+
+
 def send_result_notification(exam: Mapping[str, Any]) -> str:
     """Send one result-release notification to the Android results topic."""
     message_id = messaging.send(
