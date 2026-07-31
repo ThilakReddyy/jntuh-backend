@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/thilakreddyy/jntuhresults-web.svg)](https://github.com/ThilakReddyy/jntuh-backend/blob/main/LICENSE)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/thilakreddyy/jntuh-backend.svg)
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fjntuhresults.dhethi.com/docs&Website-Jntuh%20Results-blue?style=flat&logo=world&logoColor=white)](https://jntuhresults.dhethi.com/docs)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fjntuhresults.dhethi.com%2Fconnect&Website-Jntuh%20Results-blue?style=flat&logo=world&logoColor=white)](https://jntuhresults.dhethi.com/connect)
 
 
 This FastAPI-based service provides access to **student results, academic records, and backlog details**. It integrates with **PostgreSQL**, **Redis**, and **RabbitMQ** for efficient data handling and messaging.
