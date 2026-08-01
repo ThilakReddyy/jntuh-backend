@@ -1,9 +1,12 @@
 import asyncio
+from collections.abc import Iterator
+
 import aio_pika
 
 from config.connection import prismaConnection
 from config.redisConnection import redisConnection
 from config.settings import (
+    CLASS_RESULTS_QUEUE_NAME,
     NOTIFICATIONS_REDIS_KEY,
     QUEUE_NAME,
     RABBITMQ_URL,
@@ -17,6 +20,45 @@ from subscriptions.send_notification import send_push_notification_to_particular
 from subscriptions.firebase_notification import notify_student_result_updated
 from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
+
+
+def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
+    """Yield every roll number in the requested and paired class cohorts."""
+    class_prefix = roll_number[:8]
+    admission_type = class_prefix[4]
+
+    if admission_type == "1":
+        paired_year = str(int(class_prefix[:2]) + 1).zfill(2)
+        paired_admission_type = "5"
+    elif admission_type == "5":
+        paired_year = str(int(class_prefix[:2]) - 1).zfill(2)
+        paired_admission_type = "1"
+    else:
+        raise ValueError(
+            f"Unsupported admission type in class roll number: {roll_number}"
+        )
+
+    paired_prefix = (
+        paired_year
+        + class_prefix[2:4]
+        + paired_admission_type
+        + class_prefix[5:8]
+    )
+
+    for prefix in (class_prefix, paired_prefix):
+        for number in range(1, 100):
+            yield f"{prefix}{number:02d}"
+        for letter_code in range(ord("A"), ord("Z") + 1):
+            letter = chr(letter_code)
+            for number in range(10):
+                yield f"{prefix}{letter}{number}"
+
+
+async def process_class_results_message(message_body: str) -> None:
+    """Scrape both class cohorts one roll number at a time."""
+    rabbitmq_logger.info(f"Processing class results message: {message_body}")
+    for roll_number in iter_class_roll_numbers(message_body):
+        await process_message(roll_number)
 
 
 # Define a function to process messages
@@ -71,6 +113,48 @@ async def process_message(message_body: str):
     """Consume messages from RabbitMQ and pass them to the processing function."""
 
 
+async def _consume_default_queue(queue) -> None:
+    async with queue.iterator() as queue_iter:
+        async for message in queue_iter:
+            try:
+                async with message.process():
+                    body = message.body.decode()
+                    # Remove the roll number from Redis after successful processing
+                    if redisConnection.client:
+                        redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
+                        rabbitmq_logger.info(
+                            f"Removed roll number {body} from Redis."
+                        )
+                    else:
+                        rabbitmq_logger.warning("Redis is not found")
+
+                    if body == NOTIFICATIONS_REDIS_KEY:
+                        await refresh_notifications()
+                    else:
+                        await process_message(body)
+
+            except Exception as error:
+                rabbitmq_logger.error(
+                    f"Error processing message: {error},{message.body}"
+                )
+                if not message.processed:
+                    await message.reject(requeue=False)
+
+
+async def _consume_class_results_queue(queue) -> None:
+    async with queue.iterator() as queue_iter:
+        async for message in queue_iter:
+            try:
+                async with message.process():
+                    await process_class_results_message(message.body.decode())
+            except Exception as error:
+                rabbitmq_logger.error(
+                    f"Error processing class results message: {error},{message.body}"
+                )
+                if not message.processed:
+                    await message.reject(requeue=False)
+
+
 async def consume_messages():
     try:
         # connection = app.state.rabbitmq_connection
@@ -86,39 +170,27 @@ async def consume_messages():
 
         async with connection:
             channel = await connection.channel()
+            class_results_channel = await connection.channel()
 
-            await channel.set_qos(prefetch_count=2)  # ADD THIS LINE
+            await channel.set_qos(prefetch_count=2)
+            # Only one class batch may run at a time. Each batch also awaits
+            # every individual roll number before starting the next one.
+            await class_results_channel.set_qos(prefetch_count=1)
 
-            # Declare the queue
             queue = await channel.declare_queue(QUEUE_NAME, durable=True)
+            class_results_queue = await class_results_channel.declare_queue(
+                CLASS_RESULTS_QUEUE_NAME,
+                durable=True,
+            )
             rabbitmq_logger.info(f"Waiting for messages in queue: {QUEUE_NAME}")
+            rabbitmq_logger.info(
+                f"Waiting for messages in queue: {CLASS_RESULTS_QUEUE_NAME}"
+            )
 
-            # Create an asynchronous iterator for the queue
-            async with queue.iterator() as queue_iter:
-                async for message in queue_iter:
-                    try:
-                        async with message.process():
-                            body = message.body.decode()
-                            # Remove the roll number from Redis after successful processing
-                            if redisConnection.client:
-                                redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
-                                rabbitmq_logger.info(
-                                    f"Removed roll number {body} from Redis."
-                                )
-                            else:
-                                rabbitmq_logger.warning("Redis is not found")
-
-                            if body == NOTIFICATIONS_REDIS_KEY:
-                                await refresh_notifications()
-                            else:
-                                await process_message(body)
-
-                    except Exception as e:
-                        rabbitmq_logger.error(
-                            f"Error processing message: {e},{message.body}"
-                        )
-                        # Optionally, you can reject or requeue the message here
-                        await message.reject(requeue=False)
+            await asyncio.gather(
+                _consume_default_queue(queue),
+                _consume_class_results_queue(class_results_queue),
+            )
 
     except asyncio.CancelledError:
         rabbitmq_logger.info("Message consumption was cancelled.")

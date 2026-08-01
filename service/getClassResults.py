@@ -14,6 +14,7 @@ from database.models import (
 )
 from database.operations import get_students_details
 from config.settings import RABBITMQ_CLASS_MAX_MESSAGES
+from messaging.publisher import publish_class_results_message
 
 
 async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
@@ -33,7 +34,9 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
     Backpressure: if the RabbitMQ scrape queue depth exceeds
     `RABBITMQ_CLASS_MAX_MESSAGES` the response is HTTP 423 LOCKED so a class
     request can't pile a hundred scrapes onto an already-loaded server.
-    Caching: Redis key `<class>Results+<type>` for 600 seconds.
+    Caching: Redis key `<class>Results+<type>` for 600 seconds. Only cache
+    misses with non-empty database results are published to the dedicated
+    class-results queue.
     """
 
     # --- Step 1: RabbitMQ load check ---
@@ -47,6 +50,7 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
                     "message": "Server Load is High. Please Try again later!!",
                 },
             )
+
     # --- Step 2: Redis cache lookup ---
     roll_results_key = f"{roll_number[:8]}Results+{type}"
     if redisConnection.client:
@@ -83,6 +87,16 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
                 elif type == "backlog":
                     result["results"] = studentBacklogs(student.marks, is_bpharmacy)
             results.append(result)
+
+    if results:
+        try:
+            await publish_class_results_message(app, roll_number)
+        except Exception as error:
+            # The new background class scrape must not break the existing
+            # database-backed class-results response.
+            logger.error(
+                f"Failed to publish class results request for {roll_number}: {error}"
+            )
 
     # --- Step 5: Save to Redis cache ---
     if redisConnection.client:

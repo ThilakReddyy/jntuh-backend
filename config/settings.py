@@ -57,6 +57,8 @@ CHATBOT_MODEL = os.getenv("CHATBOT_MODEL") or None
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID") or None
 FCM_RESULTS_TOPIC = os.getenv("FCM_RESULTS_TOPIC", "result-updates")
+CLASS_RESULTS_QUEUE_NAME = os.getenv("CLASS_RESULTS_QUEUE_NAME", "classresults")
+CLASS_RESULTS_QUEUE_MAX_MESSAGES = 5
 
 
 def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
