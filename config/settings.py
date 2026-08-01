@@ -58,7 +58,7 @@ GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or 
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID") or None
 FCM_RESULTS_TOPIC = os.getenv("FCM_RESULTS_TOPIC", "result-updates")
 CLASS_RESULTS_QUEUE_NAME = os.getenv("CLASS_RESULTS_QUEUE_NAME", "classresults")
-CLASS_RESULTS_QUEUE_MAX_MESSAGES = 5
+CLASS_RESULTS_QUEUE_MAX_MESSAGES = 3
 
 
 def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -113,7 +113,8 @@ SYLLABUS_REDIS_KEY = "syllabus_tree"
 REDIS_URL_KEY = "url"
 SEMESTERS = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2"]
 RABBITMQ_MAX_MESSAGES = 4000
-RABBITMQ_CLASS_MAX_MESSAGES = 200
+RABBITMQ_CLASS_MAX_MESSAGES = 500
+RABBITMQ_CLASS_PUBLISH_MAX_MESSAGES = 50
 RABBITMQ_ROLL_NUMBERS = "rabbitmq_roll_numbers"
 RESULTS = "results"
 ALL = "all"

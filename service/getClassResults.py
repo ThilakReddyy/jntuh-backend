@@ -3,7 +3,7 @@ import time
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from config.redisConnection import redisConnection
-from config.settings import QUEUE_NAME
+from config.settings import QUEUE_NAME, RABBITMQ_CLASS_PUBLISH_MAX_MESSAGES
 from utils.logger import logger
 from utils.helpers import isbpharmacyr22
 from database.models import (
@@ -89,14 +89,20 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
             results.append(result)
 
     if results:
-        try:
-            await publish_class_results_message(app, roll_number)
-        except Exception as error:
-            # The new background class scrape must not break the existing
-            # database-backed class-results response.
-            logger.error(
-                f"Failed to publish class results request for {roll_number}: {error}"
-            )
+        async with app.state.rabbitmq_connection.channel() as channel:
+            queue = await channel.declare_queue(QUEUE_NAME, durable=True)
+            if (
+                queue.declaration_result.message_count
+                < RABBITMQ_CLASS_PUBLISH_MAX_MESSAGES
+            ):
+                try:
+                    await publish_class_results_message(app, roll_number)
+                except Exception as error:
+                    # The new background class scrape must not break the existing
+                    # database-backed class-results response.
+                    logger.error(
+                        f"Failed to publish class results request for {roll_number}: {error}"
+                    )
 
     # --- Step 5: Save to Redis cache ---
     if redisConnection.client:
