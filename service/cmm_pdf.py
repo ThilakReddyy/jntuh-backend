@@ -14,7 +14,6 @@ INK = HexColor("#17211E")
 PAPER = HexColor("#EDF3E7")
 PATTERN = HexColor("#C9D7C6")
 LINE = HexColor("#2A342F")
-RED = HexColor("#DCC5C2")
 GOLD = HexColor("#C79222")
 GRADE_POINTS = {
     "O": 10,
@@ -98,20 +97,6 @@ def barcode(c, x, y, width, height, seed=0):
         c.rect(cursor, y, bar, height, fill=1, stroke=0)
         cursor += bar + (0.65 if index % 2 else 1.25)
         index += 1
-
-
-def watermark(c):
-    c.saveState()
-    try:
-        c.setFillAlpha(0.025)
-    except Exception:
-        pass
-    c.setFillColor(RED)
-    c.translate(PAGE_W / 2, PAGE_H / 2)
-    c.rotate(30)
-    c.setFont("Helvetica-Bold", 22)
-    c.drawCentredString(0, 0, "SAMPLE — FOR ILLUSTRATION ONLY")
-    c.restoreState()
 
 
 def header(c, details, results):
@@ -293,7 +278,6 @@ def generate_cmm_pdf(
     c.setTitle(f"CMM Sample — {details.get('rollNumber', 'Illustration')}")
     c.setAuthor("Generated illustration; not an official academic credential")
     background(c)
-    watermark(c)
     border(c)
     header(c, details, results)
     academic_table(c, results)
