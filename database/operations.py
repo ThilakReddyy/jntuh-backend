@@ -386,6 +386,12 @@ async def delete_result_device_subscriptions(ids: list[str]):
     )
 
 
+async def delete_result_device_subscriptions_for_device(device_id: str):
+    return await prismaConnection.prisma.resultdevicesubscription.delete_many(
+        where={"deviceId": device_id}
+    )
+
+
 async def save_grace_marks_proof(
     roll_number: str,
     s3_key: str,

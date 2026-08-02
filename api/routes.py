@@ -1,4 +1,5 @@
 import os
+from uuid import UUID
 
 from fastapi import (
     APIRouter,
@@ -7,6 +8,7 @@ from fastapi import (
     File,
     Header,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     status,
@@ -41,7 +43,11 @@ from service.notificationService import (
     notification,
     refreshNotification,
 )
-from service.subscriptionService import save_result_subscription, save_subscription
+from service.subscriptionService import (
+    delete_result_subscriptions,
+    save_result_subscription,
+    save_subscription,
+)
 from service import grace_marks_service
 from utils.auth import require_admin_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
@@ -455,6 +461,17 @@ def create_routes(app: FastAPI):
         data: ResultDeviceSubscriptionPayload,
     ):
         return await save_result_subscription(data)
+
+    @router.delete(
+        "/api/result-subscriptions",
+        summary="Delete every result subscription for a device",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def delete_result_subscriptions_endpoint(
+        device_id: UUID = Query(alias="deviceId"),
+    ):
+        return await delete_result_subscriptions(str(device_id))
 
     @router.post(
         "/job",
