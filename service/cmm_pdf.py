@@ -167,7 +167,7 @@ def vertical_label(c, text, cx, cy, size=5.2):
 
 
 def columns(c, x0, y_top, y_bottom, draw_titles=False):
-    widths = [22, 200, 18, 18, 24]
+    widths = [48, 174, 18, 18, 24]
     bounds = [x0]
     for width in widths:
         bounds.append(bounds[-1] + width)
@@ -176,7 +176,7 @@ def columns(c, x0, y_top, y_bottom, draw_titles=False):
     for xx in bounds:
         c.line(xx, y_top, xx, y_bottom)
     if draw_titles:
-        fit(c, "S.No.", bounds[0], y_bottom + 10, widths[0], 5.5, True, "center")
+        fit(c, "SUBJECT CODE", bounds[0], y_bottom + 10, widths[0], 4.8, True, "center")
         fit(c, "SUBJECT TITLE", bounds[1], y_bottom + 10, widths[1], 7, True, "center")
         vertical_label(c, "GRADE POINT", bounds[2] + widths[2] / 2, y_bottom + 16, 4.1)
         vertical_label(c, "GRADE", bounds[3] + widths[3] / 2, y_bottom + 16)
@@ -187,10 +187,10 @@ def columns(c, x0, y_top, y_bottom, draw_titles=False):
 def semester_rows(c, semester, bounds, top, bottom, max_rows=11):
     subjects = (semester or {}).get("subjects", [])[:max_rows]
     row_h = (top - bottom) / max_rows
-    for idx, subject in enumerate(subjects, 1):
-        yy = top - idx * row_h + row_h * 0.34
+    for row_index, subject in enumerate(subjects, 1):
+        yy = top - row_index * row_h + row_h * 0.34
         grade = str(subject.get("grades", "-")).upper()
-        fit(c, idx, bounds[0] + 2, yy, bounds[1] - bounds[0] - 4, 5.4, align="center")
+        fit(c, subject.get("subjectCode", ""), bounds[0] + 2, yy, bounds[1] - bounds[0] - 4, 5.2, align="center")
         fit(c, subject.get("subjectName", ""), bounds[1] + 5, yy, bounds[2] - bounds[1] - 9, 5.25)
         fit(c, GRADE_POINTS.get(grade, "-"), bounds[2], yy, bounds[3] - bounds[2], 5.5, align="center")
         fit(c, grade, bounds[3], yy, bounds[4] - bounds[3], 5.5, True, "center")
