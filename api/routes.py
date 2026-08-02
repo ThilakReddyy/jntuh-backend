@@ -33,6 +33,7 @@ from database.models import (
 from service.getAllResultService import fetch_all_results
 from service.getBacklogsService import fetch_backlogs
 from service.getClassResults import fetch_class_results
+from service.getCMMService import fetch_cmm
 from service.getRequiredCreditsService import fetch_required_credits
 from service.getResultContrastService import fetch_result_contrast
 from service.getResultsService import fetch_results
@@ -119,6 +120,30 @@ def create_routes(app: FastAPI):
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_results(app, roll_no)
+
+    @router.get(
+        "/api/getCMM",
+        operation_id="get_cmm",
+        summary="Download a watermarked CMM sample PDF",
+        description=(
+            "Builds a clearly watermarked, non-official CMM illustration from the "
+            "student's consolidated best-attempt result. Returns a PDF attachment "
+            "when result data is available. On a cache/database miss, queues the "
+            "usual result scrape and returns that JSON status response instead."
+        ),
+        tags=["Results"],
+        responses={
+            200: {
+                "description": "Watermarked CMM sample PDF",
+                "content": {"application/pdf": {}},
+            },
+            202: {"description": "Result scrape queued"},
+        },
+    )
+    async def get_cmm(
+        roll_no: str = Depends(validateRollNo),
+    ):
+        return await fetch_cmm(app, roll_no)
 
     @router.get(
         "/api/getBacklogs",
