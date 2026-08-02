@@ -63,6 +63,7 @@ def test_generate_cmm_pdf_returns_a_pdf_document():
 
     assert pdf.startswith(b"%PDF-")
     assert len(pdf) > 1_000
+    assert b"https://jntuhconnect.dhethi.com" in pdf
 
 
 def test_fetch_cmm_returns_downloadable_pdf(monkeypatch):

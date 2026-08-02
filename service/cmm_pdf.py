@@ -265,6 +265,13 @@ def footer(c, results):
     c.circle(313, 95, 8, fill=1, stroke=0)
     fit(c, "CONTROLLER OF EXAMINATIONS", 418, 76, 164, 7.2, True, "center")
     fit(c, "(No signature shown — sample illustration)", 405, 62, 188, 5.2, align="center")
+    fit(c, "jntuhconnect.dhethi.com", 206, 49, 200, 6.5, True, "center")
+    c.linkURL(
+        "https://jntuhconnect.dhethi.com",
+        (206, 45, 406, 57),
+        relative=0,
+        thickness=0,
+    )
     fit(c, "SAMPLE DOCUMENT — NOT VALID FOR VERIFICATION OR OFFICIAL USE", 130, 35, 352, 5.4, True, "center")
 
 
