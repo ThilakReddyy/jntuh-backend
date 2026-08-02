@@ -204,8 +204,9 @@ def create_routes(app: FastAPI):
         description=(
             "Uploads the supporting JNTUH sheet (PDF or image, ≤5MB) for a "
             "grace-marks eligible student. Re-verifies eligibility with the same "
-            "logic as grace-marks/eligibility before storing the file in S3 and "
-            "recording its location. Per-IP rate limit: 5/minute."
+            "logic as grace-marks/eligibility, then verifies that the document is "
+            "a Consolidated Marks Memo (CMM). Only a confirmed CMM is stored in "
+            "S3 and recorded in the database. Per-IP rate limit: 5/minute."
         ),
         tags=["Results"],
     )

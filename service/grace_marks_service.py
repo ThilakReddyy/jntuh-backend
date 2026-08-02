@@ -28,6 +28,10 @@ from database.operations import (
 from utils.caching import invalidate_all_cache
 from utils.logger import database_logger, logger
 from utils.s3 import generate_get_url, generate_get_urls, upload_bytes
+from service.cmm_classifier import (
+    CMMClassifierConfigurationError,
+    classify_cmm_document,
+)
 
 
 async def evaluate_eligibility(roll_no: str):
@@ -125,8 +129,8 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
     if not eligible:
         return JSONResponse(status_code=status_code, content=payload)
 
-    content_type = (file.content_type or "").lower()
-    if content_type not in GRACE_MARKS_PROOF_ALLOWED_TYPES:
+    supplied_content_type = (file.content_type or "").lower()
+    if supplied_content_type not in GRACE_MARKS_PROOF_ALLOWED_TYPES:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -134,6 +138,9 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
                 "message": "Only PDF or image (PNG/JPEG) uploads are accepted.",
             },
         )
+    content_type = (
+        "image/jpeg" if supplied_content_type == "image/jpg" else supplied_content_type
+    )
 
     data = await file.read()
     if len(data) == 0:
@@ -147,6 +154,47 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
             content={
                 "status": "failure",
                 "message": "File exceeds the 5MB upload limit.",
+            },
+        )
+
+    try:
+        cmm_result = await classify_cmm_document(data, content_type)
+    except CMMClassifierConfigurationError:
+        logger.exception("CMM classifier is not configured")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "failure",
+                "message": "Document verification is temporarily unavailable. Please try again later.",
+            },
+        )
+    except Exception:
+        logger.exception(f"CMM classification failed for {roll_no}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "failure",
+                "message": "We couldn't verify this document right now. Please try again later.",
+            },
+        )
+
+    if cmm_result.classification == "not_cmm":
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "status": "failure",
+                "classification": "not_cmm",
+                "message": "This does not appear to be a Consolidated Marks Memo (CMM). Please upload your official CMM file.",
+            },
+        )
+
+    if cmm_result.classification == "uncertain":
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "status": "failure",
+                "classification": "uncertain",
+                "message": "We couldn't clearly verify this document as a CMM. Please upload a clear, complete image or PDF of your CMM.",
             },
         )
 

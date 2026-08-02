@@ -1,6 +1,8 @@
 import math
 import os
 import sys
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 from utils.logger import logger
@@ -44,6 +46,22 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL") or None
 S3_PUBLIC_URL_BASE = os.getenv("S3_PUBLIC_URL_BASE") or None
 GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
+# Optional Gemini configuration for CMM verification. These stay optional at
+# process startup so unrelated endpoints can still run if verification is not
+# configured; the grace-marks upload endpoint fails closed with HTTP 503.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or None
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_configured_cmm_reference = os.getenv("CMM_REFERENCE_PATH")
+CMM_REFERENCE_PATH = (
+    Path(_configured_cmm_reference).expanduser()
+    if _configured_cmm_reference
+    else PROJECT_ROOT
+    / "assests"
+    / "1000005143.jpg"
+)
+if not CMM_REFERENCE_PATH.is_absolute():
+    CMM_REFERENCE_PATH = PROJECT_ROOT / CMM_REFERENCE_PATH
 # Optional shared secret for the X-Api-Key header guard. When set, the header
 # value must match exactly; when unset, any non-empty value passes.
 API_ACCESS_KEY = os.getenv("API_ACCESS_KEY") or None
