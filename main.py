@@ -17,6 +17,7 @@ from chatbot.tools import MCPToolGateway
 from api.routes import create_routes
 from config.apiHeaderGuard import API_KEY_HEADER, ApiKeyHeaderMiddleware
 from config.mcp import MCP_INCLUDE_OPERATIONS
+from config.openapi import add_api_key_security
 from config.rateLimiter import ExemptingSlowAPIMiddleware, limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
@@ -78,7 +79,7 @@ async def lifespan(app: FastAPI):
 def custom_openapi():
     """Generate and cache a custom OpenAPI schema for the FastAPI application."""
     if not app.openapi_schema:
-        app.openapi_schema = get_openapi(
+        schema = get_openapi(
             title="JNTUH RESULTS API",
             version="0.1.0",
             summary="API for retrieving student results and academic information",
@@ -87,9 +88,10 @@ def custom_openapi():
             "access to university result data in a structured format.",
             routes=app.routes,
         )
-        app.openapi_schema["info"]["x-logo"] = {
+        schema["info"]["x-logo"] = {
             "url": "https://jntuhconnect.dhethi.com/_next/image?url=%2Fjntuhresults_md.png&w=256&q=75"
         }
+        app.openapi_schema = add_api_key_security(schema, API_KEY_HEADER)
     return app.openapi_schema
 
 
