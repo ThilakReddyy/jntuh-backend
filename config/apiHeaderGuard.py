@@ -5,11 +5,12 @@ Every request must carry a non-empty `X-Api-Key` header or it is rejected with
 `API_ACCESS_KEY` env var is set, the header value must also match it exactly;
 when unset, any non-empty value passes (presence-only check).
 
-Requests from the JNTUH Connect Android app are allowed WITHOUT the header,
-recognised by User-Agent: Retrofit/OkHttp sends `okhttp/<version>` and the
-app's raw HttpURLConnection health probe sends `Dalvik/... (Linux; U; Android
-...)`. A User-Agent is trivially spoofable, so like the header itself this
-only blocks casual direct hits, not a determined caller.
+Requests from the JNTUH Connect mobile apps are allowed WITHOUT the header.
+The iOS app sends the exact User-Agent `JNTUH-Connect-iOS/1.0`. Retrofit/OkHttp
+on Android sends `okhttp/<version>`, while the app's raw HttpURLConnection
+health probe sends `Dalvik/... (Linux; U; Android ...)`. A User-Agent is
+trivially spoofable, so like the header itself this only blocks casual direct
+hits, not a determined caller.
 
 Exempt from the check:
 - `/mcp` — the MCP sub-app mounted by FastApiMCP; MCP clients cannot be asked
@@ -33,9 +34,11 @@ API_KEY_HEADER = "X-Api-Key"
 GUARD_EXEMPT_PATH_PREFIXES = ("/mcp", "/metrics", "/docs", "/redoc", "/openapi.json")
 GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect")
 
-# User-Agent prefixes (lower-cased) that bypass the header check — the JNTUH
-# Connect Android app: OkHttp/Retrofit ("okhttp/4.12.0") and Android's
-# HttpURLConnection ("Dalvik/2.1.0 (Linux; U; Android 14; ...)").
+# Exact User-Agents (lower-cased) that bypass the header check.
+ALLOWED_USER_AGENTS = ("jntuh-connect-ios/1.0",)
+
+# Android's generated User-Agents include runtime version details, so those
+# are matched by prefix.
 ALLOWED_USER_AGENT_PREFIXES = ("okhttp/", "dalvik/")
 
 
@@ -52,7 +55,9 @@ class ApiKeyHeaderMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         user_agent = request.headers.get("User-Agent", "").lower()
-        if user_agent.startswith(ALLOWED_USER_AGENT_PREFIXES):
+        if user_agent in ALLOWED_USER_AGENTS or user_agent.startswith(
+            ALLOWED_USER_AGENT_PREFIXES
+        ):
             return await call_next(request)
 
         provided = request.headers.get(API_KEY_HEADER)
