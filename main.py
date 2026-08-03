@@ -17,7 +17,7 @@ from chatbot.tools import MCPToolGateway
 from api.routes import create_routes
 from config.apiHeaderGuard import API_KEY_HEADER, ApiKeyHeaderMiddleware
 from config.mcp import MCP_INCLUDE_OPERATIONS
-from config.openapi import add_api_key_security
+from config.openapi import add_api_key_security, add_servers
 from config.rateLimiter import ExemptingSlowAPIMiddleware, limiter
 from config.redisConnection import redisConnection
 from config.connection import prismaConnection
@@ -91,7 +91,8 @@ def custom_openapi():
         schema["info"]["x-logo"] = {
             "url": "https://jntuhconnect.dhethi.com/_next/image?url=%2Fjntuhresults_md.png&w=256&q=75"
         }
-        app.openapi_schema = add_api_key_security(schema, API_KEY_HEADER)
+        schema = add_api_key_security(schema, API_KEY_HEADER)
+        app.openapi_schema = add_servers(schema)
     return app.openapi_schema
 
 

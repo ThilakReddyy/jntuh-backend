@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from config.openapi import add_api_key_security
+from config.openapi import add_api_key_security, add_servers
 
 
 def test_api_key_security_is_available_to_openapi_clients():
@@ -25,3 +25,18 @@ def test_api_key_security_is_available_to_openapi_clients():
         ),
     }
     assert schema["security"] == [{"ApiKeyAuth": []}]
+
+
+def test_local_and_production_servers_are_available_to_openapi_clients():
+    schema = {}
+
+    result = add_servers(schema)
+
+    assert result is schema
+    assert schema["servers"] == [
+        {"url": "http://localhost:8000/", "description": "Local development"},
+        {
+            "url": "https://jntuhresults.dhethi.com/",
+            "description": "Production",
+        },
+    ]
