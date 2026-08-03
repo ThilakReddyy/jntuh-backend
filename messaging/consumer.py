@@ -6,6 +6,7 @@ import aio_pika
 from config.connection import prismaConnection
 from config.redisConnection import redisConnection
 from config.settings import (
+    CLASS_RESULTS_PROCESSED_EXPIRY_TIME,
     CLASS_RESULTS_QUEUE_NAME,
     NOTIFICATIONS_REDIS_KEY,
     QUEUE_NAME,
@@ -22,8 +23,8 @@ from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
 
 
-def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
-    """Yield every roll number in the requested and paired class cohorts."""
+def get_class_prefixes(roll_number: str) -> tuple[str, str]:
+    """Return the requested and paired class prefixes."""
     class_prefix = roll_number[:8]
     admission_type = class_prefix[4]
 
@@ -44,8 +45,14 @@ def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
         + paired_admission_type
         + class_prefix[5:8]
     )
+    return class_prefix, paired_prefix
 
-    for prefix in (class_prefix, paired_prefix):
+
+def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
+    """Yield every roll number in the requested and paired class cohorts."""
+    class_prefixes = get_class_prefixes(roll_number)
+
+    for prefix in class_prefixes:
         for number in range(1, 100):
             yield f"{prefix}{number:02d}"
         for letter_code in range(ord("A"), ord("Z") + 1):
@@ -55,14 +62,46 @@ def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
 
 
 async def process_class_results_message(message_body: str) -> None:
-    """Scrape both class cohorts one roll number at a time."""
+    """Scrape a class unless either paired cohort was processed in the last day."""
     rabbitmq_logger.info(f"Processing class results message: {message_body}")
-    for roll_number in iter_class_roll_numbers(message_body):
-        await process_message(roll_number)
+    class_prefixes = get_class_prefixes(message_body)
+    processed_keys = [
+        f"class_results_processed:{prefix}" for prefix in class_prefixes
+    ]
+
+    if redisConnection.client and any(
+        redisConnection.client.exists(key) for key in processed_keys
+    ):
+        rabbitmq_logger.info(
+            f"Skipping class results for {message_body[:8]}; "
+            "already processed within 24 hours"
+        )
+        return
+
+    consecutive_empty_results = 0
+    for student_roll_number in iter_class_roll_numbers(message_body):
+        has_results = await process_message(student_roll_number)
+        if has_results:
+            consecutive_empty_results = 0
+            continue
+
+        consecutive_empty_results += 1
+        if consecutive_empty_results >= 20:
+            rabbitmq_logger.info(
+                f"Stopping class results for {message_body[:8]} after "
+                "20 consecutive roll numbers returned no results"
+            )
+            break
+
+    if redisConnection.client:
+        for key in processed_keys:
+            redisConnection.client.set(
+                key, "1", ex=CLASS_RESULTS_PROCESSED_EXPIRY_TIME
+            )
 
 
 # Define a function to process messages
-async def process_message(message_body: str):
+async def process_message(message_body: str) -> bool:
     try:
         """
         Process the consumed message.
@@ -73,7 +112,7 @@ async def process_message(message_body: str):
         url = check_url()
         if not url:
             rabbitmq_logger.warning("No url found, skipping processing...")
-            return
+            return False
 
         # get exam codes present in database
         exam_codes = await get_exam_codes_from_database(message_body)
@@ -90,7 +129,7 @@ async def process_message(message_body: str):
 
         if results is None:
             logger.warning(f"Failed to get results: {message_body}")
-            return
+            return False
 
         logger.info(f"Results was successfully extracted: {message_body}")
 
@@ -106,9 +145,11 @@ async def process_message(message_body: str):
                 logger.error(
                     f"Firebase student result notification failed for {message_body}: {error}"
                 )
+        return True
 
     except Exception as e:
         scraping_logger.error(f"Error while scarping results: {e}")
+        return False
 
     """Consume messages from RabbitMQ and pass them to the processing function."""
 

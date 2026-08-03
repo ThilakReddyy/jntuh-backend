@@ -1,6 +1,8 @@
 import asyncio
-from unittest.mock import AsyncMock, call, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
+from config.redisConnection import redisConnection
 from messaging.consumer import (
     iter_class_roll_numbers,
     process_class_results_message,
@@ -35,9 +37,16 @@ def test_iter_class_roll_numbers_decrements_year_for_lateral_cohort():
 
 
 def test_process_class_results_message_processes_roll_numbers_in_order():
-    process = AsyncMock()
+    process = AsyncMock(return_value=True)
+    redis_client = SimpleNamespace(
+        exists=MagicMock(return_value=False),
+        set=MagicMock(),
+    )
 
-    with patch("messaging.consumer.process_message", new=process):
+    with (
+        patch("messaging.consumer.process_message", new=process),
+        patch.object(redisConnection, "client", redis_client),
+    ):
         asyncio.run(process_class_results_message("18E51A0479"))
 
     assert process.await_count == 718
@@ -50,3 +59,63 @@ def test_process_class_results_message_processes_roll_numbers_in_order():
         call("19E55A04Z8"),
         call("19E55A04Z9"),
     ]
+    assert redis_client.set.call_args_list == [
+        call("class_results_processed:18E51A04", "1", ex=86400),
+        call("class_results_processed:19E55A04", "1", ex=86400),
+    ]
+
+
+def test_process_class_results_message_skips_recently_processed_class():
+    process = AsyncMock()
+    redis_client = SimpleNamespace(
+        # The paired cohort was processed, so this request represents the same class.
+        exists=MagicMock(side_effect=[False, True]),
+        set=MagicMock(),
+    )
+
+    with (
+        patch("messaging.consumer.process_message", new=process),
+        patch.object(redisConnection, "client", redis_client),
+    ):
+        asyncio.run(process_class_results_message("18E51A0479"))
+
+    process.assert_not_awaited()
+    redis_client.set.assert_not_called()
+
+
+def test_process_class_results_message_stops_after_twenty_consecutive_empty_rolls():
+    process = AsyncMock(return_value=False)
+    redis_client = SimpleNamespace(
+        exists=MagicMock(return_value=False),
+        set=MagicMock(),
+    )
+
+    with (
+        patch("messaging.consumer.process_message", new=process),
+        patch.object(redisConnection, "client", redis_client),
+    ):
+        asyncio.run(process_class_results_message("18E51A0479"))
+
+    assert process.await_count == 20
+    assert process.await_args_list[-1] == call("18E51A0420")
+    assert redis_client.set.call_args_list == [
+        call("class_results_processed:18E51A04", "1", ex=86400),
+        call("class_results_processed:19E55A04", "1", ex=86400),
+    ]
+
+
+def test_non_empty_result_resets_consecutive_empty_roll_count():
+    process = AsyncMock(side_effect=([False] * 19) + [True] + ([False] * 20))
+    redis_client = SimpleNamespace(
+        exists=MagicMock(return_value=False),
+        set=MagicMock(),
+    )
+
+    with (
+        patch("messaging.consumer.process_message", new=process),
+        patch.object(redisConnection, "client", redis_client),
+    ):
+        asyncio.run(process_class_results_message("18E51A0479"))
+
+    assert process.await_count == 40
+    assert process.await_args_list[-1] == call("18E51A0440")
