@@ -34,6 +34,14 @@ from service.cmm_classifier import (
 )
 
 
+async def _notify_student_result_updated(roll_number: str) -> None:
+    # Keep Firebase optional during API startup; the Admin SDK is only needed
+    # when an approval actually has to be delivered.
+    from subscriptions.firebase_notification import notify_student_result_updated
+
+    await notify_student_result_updated(roll_number)
+
+
 async def evaluate_eligibility(roll_no: str):
     """Pure eligibility check used by both the GET eligibility route and the POST proof upload.
 
@@ -428,6 +436,17 @@ async def update_proof_status(app, proof_id: str, payload: ProofStatusUpdate):
                 "message": "Grace-marks proof not found.",
             },
         )
+
+    if payload.status == "approved" and row.status != "approved":
+        try:
+            await _notify_student_result_updated(updated.rollNumber)
+        except Exception as e:
+            # Approval is already persisted, so an FCM outage must not make the
+            # admin retry the status update and potentially send duplicates.
+            logger.error(
+                "Firebase grace-marks approval notification failed for "
+                f"{updated.rollNumber}: {e}"
+            )
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

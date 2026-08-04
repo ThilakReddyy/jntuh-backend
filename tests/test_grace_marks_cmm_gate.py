@@ -2,8 +2,10 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import AsyncMock
 
 from fastapi import UploadFile
 
@@ -55,6 +57,67 @@ def _upload() -> UploadFile:
 
 def _body(response) -> dict:
     return json.loads(response.body)
+
+
+def _proof(status: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id="proof-id",
+        rollNumber="22XX1A0501",
+        status=status,
+        updatedAt=datetime.now(timezone.utc),
+    )
+
+
+def test_approving_proof_sends_student_result_fcm(monkeypatch):
+    notify = AsyncMock()
+    monkeypatch.setattr(
+        grace_marks_service,
+        "get_grace_marks_proof_by_id",
+        AsyncMock(return_value=_proof("pending")),
+    )
+    monkeypatch.setattr(
+        grace_marks_service,
+        "update_grace_marks_proof_status",
+        AsyncMock(return_value=_proof("approved")),
+    )
+    monkeypatch.setattr(grace_marks_service, "_notify_student_result_updated", notify)
+
+    response = asyncio.run(
+        grace_marks_service.update_proof_status(
+            None,
+            "proof-id",
+            grace_marks_service.ProofStatusUpdate(status="approved"),
+        )
+    )
+
+    assert response.status_code == 200
+    notify.assert_awaited_once_with("22XX1A0501")
+
+
+def test_repeated_approval_does_not_send_duplicate_fcm(monkeypatch):
+    notify = AsyncMock()
+    monkeypatch.setattr(
+        grace_marks_service,
+        "get_grace_marks_proof_by_id",
+        AsyncMock(return_value=_proof("approved")),
+    )
+    monkeypatch.setattr(
+        grace_marks_service,
+        "update_grace_marks_proof_status",
+        AsyncMock(return_value=_proof("approved")),
+    )
+    monkeypatch.setattr(grace_marks_service, "_notify_student_result_updated", notify)
+
+    response = asyncio.run(
+        grace_marks_service.update_proof_status(
+            None,
+            "proof-id",
+            grace_marks_service.ProofStatusUpdate(status="approved"),
+        )
+    )
+
+    assert response.status_code == 200
+    notify.assert_not_awaited()
 
 
 def test_invalid_document_is_not_uploaded_or_saved(monkeypatch):
