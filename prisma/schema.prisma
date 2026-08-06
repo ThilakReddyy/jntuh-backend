@@ -93,23 +93,47 @@ model ResultDeviceSubscription {
 }
 
 model Job {
-  id          String          @id @default(uuid())
-  title       String
-  description String
-  type        JobType
-  company     String
-  isRemote    Boolean
-  experience  String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  locations   JobOnLocation[]
+  id               String          @id @default(uuid())
+  externalId       String          @default(uuid())
+  source           String          @default("legacy")
+  canonicalKey     String          @unique @default(uuid())
+  title            String
+  description      String
+  type             JobType
+  company          String
+  companyCanonical String?
+  companyType      String          @default("OTHER")
+  isProductBased   Boolean         @default(false)
+  isFresher        Boolean         @default(false)
+  isRemote         Boolean
+  eligibilityScope String?
+  experience       String?
+  experienceMin    Int?
+  experienceMax    Int?
+  companyLogo      String?
+  salary           String?
+  tags             String?
+  applicationUrl   String?
+  postedAt         DateTime?
+  firstSeenAt      DateTime        @default(now())
+  lastSeenAt       DateTime        @default(now())
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  locations        JobOnLocation[]
+
+  @@unique([externalId, source])
+  @@index([isActive, postedAt])
+  @@index([companyType, postedAt])
+  @@index([type, postedAt])
+  @@index([source])
 
   @@map("job")
 }
 
 model JobLocation {
   id           String          @id @default(uuid())
-  locationName String
+  locationName String          @unique
   createdAt    DateTime        @default(now())
   jobs         JobOnLocation[]
 

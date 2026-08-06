@@ -44,6 +44,7 @@ from service.notificationService import (
     notification,
     refreshNotification,
 )
+from service.jobsService import fetch_jobs
 from service.subscriptionService import (
     delete_result_subscriptions,
     save_result_subscription,
@@ -499,13 +500,44 @@ def create_routes(app: FastAPI):
     ):
         return await delete_result_subscriptions(str(device_id))
 
-    @router.post(
-        "/job",
-        summary="Job Posting",
-        description="Save the job detail",
+    @router.get(
+        "/api/jobs",
+        operation_id="get_jobs",
+        summary="Get India fresher and internship engineering jobs",
+        description=(
+            "Returns active India-eligible engineering internships and fresher jobs. "
+            "Results can be filtered by employment type, company classification, "
+            "company, source, remote status, or keyword."
+        ),
         tags=["Jobs"],
-        include_in_schema=True,
     )
+    async def get_jobs_endpoint(
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=20, alias="pageSize", ge=1, le=100),
+        type: str = Query(default="", max_length=30),
+        keyword: str = Query(default="", max_length=100),
+        source: str = Query(default="", max_length=100),
+        company: str = Query(default="", max_length=100),
+        company_type: str = Query(default="", alias="companyType", max_length=20),
+        remote: bool | None = Query(default=None),
+    ):
+        normalized_type = type.upper()
+        normalized_company_type = company_type.upper()
+        if normalized_type not in {"", "INTERN", "FULL_TIME", "PART_TIME"}:
+            raise HTTPException(status_code=422, detail="Invalid job type")
+        if normalized_company_type not in {"", "PRODUCT", "SERVICE", "OTHER"}:
+            raise HTTPException(status_code=422, detail="Invalid company type")
+        return await fetch_jobs(
+            page=page,
+            page_size=page_size,
+            type=normalized_type,
+            keyword=keyword,
+            source=source,
+            company=company,
+            company_type=normalized_company_type,
+            remote=remote,
+        )
+
     @router.get("/api/health")
     async def get_health():
         return JSONResponse(

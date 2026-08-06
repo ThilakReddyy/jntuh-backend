@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from config.connection import prismaConnection
 from utils.logger import database_logger
 
@@ -11,35 +13,76 @@ async def _upsert_location(name: str) -> str:
 
 
 async def save_jobs(jobs: list[dict]) -> int:
+    """Upsert normalized jobs without mutating caller-owned records."""
+
     saved = 0
-    for job in jobs:
+    now = datetime.utcnow()
+    for incoming in jobs:
+        job = dict(incoming)
+        locations = list(dict.fromkeys(job.pop("locations", []) or ["India"]))
         try:
-            if not job.get("externalId"):
-                continue
-            location = job.pop("location", "Remote")
+            existing = await prismaConnection.prisma.job.find_first(
+                where={
+                    "OR": [
+                        {"canonicalKey": job["canonicalKey"]},
+                        {
+                            "externalId": job["externalId"],
+                            "source": job["source"],
+                        },
+                    ]
+                }
+            )
+            data = {
+                **job,
+                "lastSeenAt": now,
+                "isActive": True,
+            }
+            if existing:
+                record = await prismaConnection.prisma.job.update(
+                    where={"id": existing.id}, data=data
+                )
+            else:
+                record = await prismaConnection.prisma.job.create(data=data)
 
-            record = await prismaConnection.prisma.job.upsert(
-                where={"externalId_source": {"externalId": job["externalId"], "source": job["source"]}},
-                data={
-                    "create": {**job},
-                    "update": {
-                        "title": job["title"],
-                        "salary": job.get("salary"),
-                        "tags": job.get("tags"),
-                        "applicationUrl": job.get("applicationUrl"),
+            for location in locations:
+                normalized_location = str(location).strip()
+                if not normalized_location:
+                    continue
+                location_id = await _upsert_location(normalized_location)
+                await prismaConnection.prisma.jobonlocation.upsert(
+                    where={
+                        "jobId_locationId": {
+                            "jobId": record.id,
+                            "locationId": location_id,
+                        }
                     },
-                },
-            )
-
-            loc_id = await _upsert_location(location)
-            await prismaConnection.prisma.jobonlocation.upsert(
-                where={"jobId_locationId": {"jobId": record.id, "locationId": loc_id}},
-                data={"create": {"jobId": record.id, "locationId": loc_id}, "update": {}},
-            )
+                    data={
+                        "create": {
+                            "jobId": record.id,
+                            "locationId": location_id,
+                        },
+                        "update": {},
+                    },
+                )
             saved += 1
-        except Exception as e:
-            database_logger.error(f"Failed to save job {job.get('externalId')} ({job.get('source')}): {e}")
+        except Exception as error:
+            database_logger.error(
+                f"Failed to save job {job.get('externalId')} ({job.get('source')}): {error}"
+            )
     return saved
+
+
+async def deactivate_stale_jobs(max_age_days: int = 45) -> int:
+    """Hide jobs not observed recently; records remain available for audit."""
+
+    result = await prismaConnection.prisma.job.update_many(
+        where={
+            "isActive": True,
+            "lastSeenAt": {"lt": datetime.utcnow() - timedelta(days=max_age_days)},
+        },
+        data={"isActive": False},
+    )
+    return result
 
 
 async def get_jobs(
@@ -47,26 +90,36 @@ async def get_jobs(
     type: str = "",
     keyword: str = "",
     source: str = "",
+    company: str = "",
+    company_type: str = "",
+    remote: bool | None = None,
     page_size: int = 20,
 ) -> list:
     skip = (page - 1) * page_size
-    where: dict = {"isRemote": True}
+    where: dict = {"isActive": True, "isFresher": True}
 
     if type:
         where["type"] = type.upper()
     if source:
-        where["source"] = source.lower()
+        where["source"] = {"contains": source.casefold(), "mode": "insensitive"}
+    if company:
+        where["companyCanonical"] = {"contains": company, "mode": "insensitive"}
+    if company_type:
+        where["companyType"] = company_type.upper()
+    if remote is not None:
+        where["isRemote"] = remote
     if keyword:
         where["OR"] = [
             {"title": {"contains": keyword, "mode": "insensitive"}},
             {"company": {"contains": keyword, "mode": "insensitive"}},
+            {"companyCanonical": {"contains": keyword, "mode": "insensitive"}},
             {"tags": {"contains": keyword, "mode": "insensitive"}},
         ]
 
     return await prismaConnection.prisma.job.find_many(
         where=where,  # type: ignore
         skip=skip,
-        take=page_size,
-        order={"postedAt": "desc"},
+        take=page_size + 1,
+        order=[{"postedAt": "desc"}, {"firstSeenAt": "desc"}],
         include={"locations": {"include": {"location": True}}},
     )

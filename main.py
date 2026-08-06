@@ -34,6 +34,7 @@ from config.settings import (
     RABBITMQ_URL,
 )
 from scrapers.resultNotificationScraper import refresh_notifications_periodically
+from service.jobsService import refresh_jobs_periodically
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
 
@@ -42,6 +43,7 @@ from utils.mcpMetrics import instrument_mcp
 async def lifespan(app: FastAPI):
     """Manages the lifespan of the application, ensuring RabbitMQ connection is opened and closed properly."""
     notification_refresh_task = None
+    job_refresh_task = None
 
     try:
         logger.info("Starting FastAPI & RabbitMQ Consumer...")
@@ -53,6 +55,10 @@ async def lifespan(app: FastAPI):
             refresh_notifications_periodically(),
             name="notification-refresh-scheduler",
         )
+        job_refresh_task = asyncio.create_task(
+            refresh_jobs_periodically(),
+            name="job-refresh-scheduler",
+        )
 
         yield
 
@@ -62,6 +68,13 @@ async def lifespan(app: FastAPI):
             notification_refresh_task.cancel()
             try:
                 await notification_refresh_task
+            except asyncio.CancelledError:
+                pass
+
+        if job_refresh_task is not None:
+            job_refresh_task.cancel()
+            try:
+                await job_refresh_task
             except asyncio.CancelledError:
                 pass
 
