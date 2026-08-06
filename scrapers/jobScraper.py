@@ -30,6 +30,10 @@ ARBEITNOW_URL = "https://arbeitnow.com/api/job-board-api"
 AMAZON_URL = "https://www.amazon.jobs/en/search.json"
 GOOGLE_URL = "https://www.google.com/about/careers/applications/jobs/results/"
 AICTE_URL = "https://internship.aicte-india.org/internships.php?future=intern"
+INFOSYS_URL = "https://intapgateway.infosysapps.com/careersci/search/intapjbsrch/getCareerSearchJobs"
+TCS_SEARCH_URL = "https://ibegin.tcsapps.com/candidate/api/v1/jobs/searchJ"
+DELOITTE_SEARCH_URL = "https://southasiacareers.deloitte.com/search/"
+TECH_MAHINDRA_URL = "https://careers.techmahindra.com/"
 REMOTIVE_CATEGORIES = ("software-dev", "engineering", "data", "devops-sysadmin")
 
 _TIMEOUT = aiohttp.ClientTimeout(total=30, connect=10)
@@ -55,18 +59,19 @@ _ENGINEERING_RE = re.compile(
 )
 _NON_ENGINEERING_RE = re.compile(
     r"\b(?:sales|recruiter|human resources|hr|accountant|accounting|finance|legal|"
-    r"marketing|content writer|customer support|business development)\b",
+    r"marketing|content writer|customer support|business development|talent development|"
+    r"learning and development|learning & development)\b",
     re.IGNORECASE,
 )
 _EARLY_RE = re.compile(
     r"\b(?:intern(?:ship)?|graduate|new grad|university|campus|fresher|trainee|"
-    r"apprentice|co[ -]?op|student researcher|entry[ -]?level|junior|associate engineer|engineer i|sde i|"
+    r"apprentice|co[ -]?op|student researcher|entry[ -]?level|junior|jr\.?|associate engineer|engineer i|sde i|"
     r"software engineer 1|software engineer i)\b",
     re.IGNORECASE,
 )
 _SENIOR_RE = re.compile(
-    r"\b(?:senior|sr\.?|staff|principal|lead|architect|manager|director|head|vp|"
-    r"vice president)\b",
+    r"(?<![a-z0-9])(?:senior|sr\.?|staff|principal|lead|architect|manager|director|head|vp|"
+    r"vice president)(?![a-z0-9])",
     re.IGNORECASE,
 )
 _AICTE_LOW_QUALITY_RE = re.compile(
@@ -116,6 +121,9 @@ DEFAULT_ATS_BOARDS = (
     AtsBoard("Continental", "smartrecruiters", "Continental"),
     AtsBoard("AECOM", "smartrecruiters", "AECOM2"),
     AtsBoard("Turner & Townsend", "smartrecruiters", "TurnerTownsend"),
+    AtsBoard("Experian", "smartrecruiters", "Experian"),
+    AtsBoard("Nagarro", "smartrecruiters", "Nagarro1"),
+    AtsBoard("Sutherland", "smartrecruiters", "Sutherland"),
 )
 
 
@@ -303,6 +311,50 @@ async def _get_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
     return None
 
 
+async def _post_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
+    for attempt in range(3):
+        try:
+            async with session.post(url, timeout=_TIMEOUT, **kwargs) as response:
+                if response.status == 429 or response.status >= 500:
+                    if attempt == 2:
+                        raise RuntimeError(f"{url} returned HTTP {response.status}")
+                    await asyncio.sleep((2 ** attempt) + random.random())
+                    continue
+                if response.status != 200:
+                    raise RuntimeError(f"{url} returned HTTP {response.status}")
+                body = await response.read()
+                if len(body) > _MAX_RESPONSE_BYTES:
+                    raise RuntimeError(f"{url} response exceeded size limit")
+                return json.loads(body)
+        except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as error:
+            if attempt == 2:
+                raise RuntimeError(f"{url} request failed: {error}") from error
+            await asyncio.sleep((2 ** attempt) + random.random())
+    return None
+
+
+async def _get_html(session: aiohttp.ClientSession, url: str, **kwargs) -> str:
+    for attempt in range(3):
+        try:
+            async with session.get(url, timeout=_TIMEOUT, **kwargs) as response:
+                if response.status == 429 or response.status >= 500:
+                    if attempt == 2:
+                        raise RuntimeError(f"{url} returned HTTP {response.status}")
+                    await asyncio.sleep((2 ** attempt) + random.random())
+                    continue
+                if response.status != 200:
+                    raise RuntimeError(f"{url} returned HTTP {response.status}")
+                body = await response.read()
+                if len(body) > _MAX_RESPONSE_BYTES:
+                    raise RuntimeError(f"{url} response exceeded size limit")
+                return body.decode(response.charset or "utf-8", errors="replace")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+            if attempt == 2:
+                raise RuntimeError(f"{url} request failed: {error}") from error
+            await asyncio.sleep((2 ** attempt) + random.random())
+    return ""
+
+
 async def _scrape_remoteok(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     data = await _get_json(session, REMOTEOK_URL)
     jobs = []
@@ -360,7 +412,10 @@ async def _scrape_arbeitnow(session: aiohttp.ClientSession) -> list[dict[str, An
 
 async def _scrape_amazon(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     jobs: dict[str, dict[str, Any]] = {}
-    for query in ("intern", "graduate engineer", "software development engineer I", "associate engineer"):
+    for query in (
+        "intern", "graduate engineer", "software development engineer I", "associate engineer",
+        "software engineer Hyderabad", "intern Hyderabad",
+    ):
         data = await _get_json(session, AMAZON_URL, params={
             "base_query": query, "country": "IND", "result_limit": 100, "offset": 0,
         })
@@ -411,6 +466,212 @@ async def _scrape_google(session: aiohttp.ClientSession) -> list[dict[str, Any]]
             "earlyCareerHint": True, "tags": ["Early career"],
         })
     return jobs
+
+
+def _parse_infosys_jobs(data: Any) -> list[dict[str, Any]]:
+    jobs = []
+    for item in data if isinstance(data, list) else []:
+        location = str(item.get("location") or "").strip()
+        try:
+            minimum = int(item.get("minExperienceLevel"))
+            maximum = int(item.get("maxExperienceLevel"))
+        except (TypeError, ValueError):
+            continue
+        if "hyderabad" not in location.casefold() or minimum > 2 or maximum > 3:
+            continue
+        reference = str(item.get("referenceCode") or item.get("requisitionId") or "")
+        if not reference:
+            continue
+        description = " ".join(filter(None, (
+            item.get("postingDescription"), item.get("technicalRequirement"),
+            item.get("rolesResponsibilities"), item.get("preferredSkills"),
+        )))
+        jobs.append({
+            "externalId": reference, "source": "infosys",
+            "title": item.get("postingTitle"), "description": description,
+            "company": item.get("company") or "Infosys", "type": item.get("roleDesignation"),
+            "earlyCareerHint": True, "isRemote": False,
+            "location": f"{location.title()}, India", "experience": f"{minimum}-{maximum} years",
+            "applicationUrl": (
+                "https://career.infosys.com/jobdesc?"
+                f"jobReferenceCode={reference}&sourceId={item.get('sourceId') or 1}"
+            ),
+            "postedAt": item.get("createdOn"),
+            "tags": [item.get("functionalArea"), item.get("unit"), item.get("educationalRequirement")],
+        })
+    return jobs
+
+
+async def _scrape_infosys(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    data = await _get_json(
+        session, INFOSYS_URL,
+        params={"sourceId": "1,21", "searchText": "Hyderabad"},
+        headers={
+            "Origin": "https://career.infosys.com",
+            "Referer": "https://career.infosys.com/",
+            "User-Agent": _USER_AGENT,
+        },
+    )
+    return _parse_infosys_jobs(data)
+
+
+def _parse_tcs_jobs(items: Any) -> list[dict[str, Any]]:
+    jobs = []
+    for item in items if isinstance(items, list) else []:
+        experience = str(item.get("experience") or "")
+        minimum, maximum = _experience_range(f"{experience} years")
+        external_id = str(item.get("id") or "")
+        if not external_id or minimum is None or minimum > 2 or maximum is None or maximum > 4:
+            continue
+        jobs.append({
+            "externalId": external_id, "source": "tcs", "title": item.get("jobTitle"),
+            "description": " | ".join(filter(None, (
+                f"Skills: {item.get('skills')}" if item.get("skills") else None,
+                f"Function: {item.get('functionName')}" if item.get("functionName") else None,
+                f"Apply by: {item.get('applyByDate')}" if item.get("applyByDate") else None,
+            ))),
+            "company": "TCS", "type": item.get("functionName") or item.get("jobTitle"),
+            "earlyCareerHint": True, "isRemote": False,
+            "location": f"{item.get('location') or 'Hyderabad'}, India", "experience": f"{experience} years",
+            "applicationUrl": f"https://ibegin.tcsapps.com/candidate/next/en-IN/jobs/{external_id}",
+            "tags": [item.get("functionName"), item.get("skills")],
+        })
+    unique = {}
+    for job in jobs:
+        key = (
+            str(job.get("title") or "").casefold(),
+            str(job.get("location") or "").casefold(),
+            str(job.get("experience") or "").casefold(),
+        )
+        unique[key] = job
+    return list(unique.values())
+
+
+async def _scrape_tcs(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    jobs, page, total_pages = [], 1, 1
+    while page <= total_pages and page <= 50:
+        payload = {
+            "jobTitle": None, "jobCity": "Hyderabad", "jobFunction": None,
+            "jobExperience": None, "jobSkill": None, "pageNumber": str(page),
+            "userText": "", "jobTitleOrder": None, "jobCityOrder": None,
+            "jobFunctionOrder": None, "jobExperienceOrder": None, "applyByOrder": None,
+            "regular": True, "walkin": True,
+        }
+        response = await _post_json(session, TCS_SEARCH_URL, json=payload)
+        data = response.get("data", {}) if isinstance(response, dict) else {}
+        items = data.get("jobs", [])
+        jobs.extend(_parse_tcs_jobs(items))
+        total = int(data.get("totalJobs") or 0)
+        total_pages = max(1, (total + 9) // 10)
+        if not items:
+            break
+        page += 1
+    return list({
+        (
+            str(job.get("title") or "").casefold(),
+            str(job.get("location") or "").casefold(),
+            str(job.get("experience") or "").casefold(),
+        ): job
+        for job in jobs
+    }.values())
+
+
+def _parse_deloitte_search(body: str) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(body, "html.parser")
+    results = []
+    for row in soup.select("tr.data-row"):
+        link = row.select_one("a.jobTitle-link")
+        if not link:
+            continue
+        title = link.get_text(" ", strip=True)
+        if not _ENGINEERING_RE.search(title) or _SENIOR_RE.search(title):
+            continue
+        href = urljoin(DELOITTE_SEARCH_URL, str(link.get("href") or ""))
+        external_match = re.search(r"/(\d+)/?$", urlsplit(href).path)
+        if not external_match:
+            continue
+        location_node = row.select_one("td.colLocation .jobLocation")
+        date_node = row.select_one("td.colDate .jobDate")
+        posted_at = None
+        if date_node:
+            try:
+                posted_at = datetime.strptime(date_node.get_text(" ", strip=True), "%b %d, %Y")
+            except ValueError:
+                pass
+        results.append({
+            "externalId": external_match.group(1), "source": "deloitte", "title": title,
+            "company": "Deloitte", "type": title, "earlyCareerHint": True,
+            "isRemote": False,
+            "location": (location_node.get_text(" ", strip=True) if location_node else "Hyderabad, IN"),
+            "applicationUrl": href, "postedAt": posted_at,
+            "tags": ["Engineering", "Analyst"],
+        })
+    return results
+
+
+async def _scrape_deloitte(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for query in ("analyst", "associate", "intern", "graduate"):
+        for startrow in (0, 25):
+            body = await _get_html(session, DELOITTE_SEARCH_URL, params={
+                "q": query, "locationsearch": "Hyderabad", "startrow": startrow,
+            })
+            page = _parse_deloitte_search(body)
+            for item in page:
+                summaries[item["externalId"]] = item
+            if len(BeautifulSoup(body, "html.parser").select("tr.data-row")) < 25:
+                break
+
+    async def add_description(item: dict[str, Any]) -> dict[str, Any]:
+        detail = BeautifulSoup(await _get_html(session, item["applicationUrl"]), "html.parser")
+        container = detail.select_one(".jobdescription, .jobDescription, .job, main") or detail
+        item["description"] = container.get_text(" ", strip=True)[:30000]
+        return item
+
+    results = await asyncio.gather(
+        *(add_description(item) for item in summaries.values()), return_exceptions=True,
+    )
+    jobs = []
+    for summary, result in zip(summaries.values(), results):
+        if isinstance(result, BaseException):
+            summary["description"] = summary["title"]
+            jobs.append(summary)
+        else:
+            jobs.append(result)
+    return jobs
+
+
+def _parse_tech_mahindra_jobs(body: str) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(body, "html.parser")
+    jobs = []
+    for link in soup.select('#ctl00_ContentPlaceHolder1_divTechnicaljobs a[href*="JobDetails.aspx"]'):
+        card = link.find_parent("div", class_="title2")
+        if not card:
+            continue
+        title_node = card.select_one(":scope > div > div")
+        details = card.select_one("p")
+        title = title_node.get_text(" ", strip=True) if title_node else ""
+        detail_text = details.get_text(" ", strip=True) if details else ""
+        experience_match = re.search(r"Experience:\s*([0-9]+\s*(?:-|to)\s*[0-9]+\s*Years?)", detail_text, re.I)
+        location_match = re.search(r"Location:\s*(.+)$", detail_text, re.I)
+        experience = experience_match.group(1) if experience_match else ""
+        minimum, _ = _experience_range(experience)
+        if minimum is None or minimum > 2:
+            continue
+        href = urljoin(TECH_MAHINDRA_URL, str(link.get("href") or ""))
+        jobs.append({
+            "externalId": hashlib.sha256(href.encode("utf-8")).hexdigest()[:32],
+            "source": "tech-mahindra", "title": title, "description": detail_text,
+            "company": "Tech Mahindra", "type": title, "earlyCareerHint": True,
+            "isRemote": False,
+            "location": f"{location_match.group(1).strip() if location_match else 'Hyderabad'}, India",
+            "experience": experience, "applicationUrl": href, "tags": ["IT"],
+        })
+    return jobs
+
+
+async def _scrape_tech_mahindra(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    return _parse_tech_mahindra_jobs(await _get_html(session, TECH_MAHINDRA_URL))
 
 
 def _portal_date(value: str) -> datetime | None:
@@ -634,6 +895,10 @@ async def scrape_all_jobs() -> list[dict[str, Any]]:
         sources = [
             ("amazon", _scrape_amazon(session)),
             ("google", _scrape_google(session)),
+            ("infosys", _scrape_infosys(session)),
+            ("tcs", _scrape_tcs(session)),
+            ("deloitte", _scrape_deloitte(session)),
+            ("tech-mahindra", _scrape_tech_mahindra(session)),
             ("remoteok", _scrape_remoteok(session)),
             ("remotive", _scrape_remotive(session)),
             ("arbeitnow", _scrape_arbeitnow(session)),
