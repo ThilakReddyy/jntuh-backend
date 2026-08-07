@@ -75,6 +75,13 @@ CHATBOT_MODEL = os.getenv("CHATBOT_MODEL") or None
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID") or None
 FCM_RESULTS_TOPIC = os.getenv("FCM_RESULTS_TOPIC", "result-updates")
+# Optional native Apple Push Notification service configuration. The private
+# key may be supplied directly by the host's secret manager or by file path.
+APNS_KEY_ID = os.getenv("APNS_KEY_ID") or None
+APNS_TEAM_ID = os.getenv("APNS_TEAM_ID") or None
+APNS_BUNDLE_ID = os.getenv("APNS_BUNDLE_ID", "com.dhethi.jntuhconnect.ios")
+APNS_PRIVATE_KEY = os.getenv("APNS_PRIVATE_KEY") or None
+APNS_PRIVATE_KEY_PATH = os.getenv("APNS_PRIVATE_KEY_PATH") or None
 CLASS_RESULTS_QUEUE_NAME = os.getenv("CLASS_RESULTS_QUEUE_NAME", "classresults")
 CLASS_RESULTS_QUEUE_MAX_MESSAGES = 3
 

@@ -84,7 +84,7 @@ async def notify_student_result_updated(roll_number: str) -> None:
         get_result_device_subscriptions,
     )
 
-    subscriptions = await get_result_device_subscriptions(roll_number)
+    subscriptions = await get_result_device_subscriptions(roll_number, platform="android")
     if not subscriptions:
         return
 

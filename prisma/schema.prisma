@@ -83,6 +83,7 @@ model ResultDeviceSubscription {
   deviceToken  String
   rollNumber   String
   platform     String   @default("android")
+  environment  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -90,6 +91,18 @@ model ResultDeviceSubscription {
   @@index([rollNumber])
   @@index([deviceToken])
   @@map("result_device_subscriptions")
+}
+
+model PushDevice {
+  id          String   @id @default(uuid())
+  deviceId    String   @unique @db.Uuid
+  deviceToken String   @unique
+  environment String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([environment])
+  @@map("push_devices")
 }
 
 model Job {

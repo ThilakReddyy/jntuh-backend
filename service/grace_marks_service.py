@@ -35,9 +35,9 @@ from service.cmm_classifier import (
 
 
 async def _notify_student_result_updated(roll_number: str) -> None:
-    # Keep Firebase optional during API startup; the Admin SDK is only needed
-    # when an approval actually has to be delivered.
-    from subscriptions.firebase_notification import notify_student_result_updated
+    # Keep push providers optional during API startup; their credentials are
+    # only needed when an approval actually has to be delivered.
+    from subscriptions.mobile_notification import notify_student_result_updated
 
     await notify_student_result_updated(roll_number)
 
@@ -441,10 +441,10 @@ async def update_proof_status(app, proof_id: str, payload: ProofStatusUpdate):
         try:
             await _notify_student_result_updated(updated.rollNumber)
         except Exception as e:
-            # Approval is already persisted, so an FCM outage must not make the
+            # Approval is already persisted, so a push-provider outage must not make the
             # admin retry the status update and potentially send duplicates.
             logger.error(
-                "Firebase grace-marks approval notification failed for "
+                "Mobile grace-marks approval notification failed for "
                 f"{updated.rollNumber}: {e}"
             )
 

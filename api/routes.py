@@ -25,6 +25,7 @@ from chatbot.errors import (
 )
 from chatbot.schemas import ChatRequest, ChatResponse
 from database.models import (
+    APNSDeviceRegistrationPayload,
     GraceMarksPayload,
     ProofStatusUpdate,
     PushSub,
@@ -47,8 +48,10 @@ from service.notificationService import (
 from service.jobsService import fetch_jobs
 from service.subscriptionService import (
     delete_result_subscriptions,
+    register_apns_device,
     save_result_subscription,
     save_subscription,
+    unregister_apns_device,
 )
 from service import grace_marks_service
 from utils.auth import require_admin_key
@@ -500,6 +503,27 @@ def create_routes(app: FastAPI):
     ):
         return await delete_result_subscriptions(str(device_id))
 
+    @router.put(
+        "/api/push-devices",
+        status_code=status.HTTP_201_CREATED,
+        summary="Register an iOS device for result-release notifications",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def register_push_device_endpoint(data: APNSDeviceRegistrationPayload):
+        return await register_apns_device(data)
+
+    @router.delete(
+        "/api/push-devices",
+        summary="Unregister an iOS device from result-release notifications",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def unregister_push_device_endpoint(
+        device_id: UUID = Query(alias="deviceId"),
+    ):
+        return await unregister_apns_device(str(device_id))
+
     @router.get(
         "/api/jobs",
         operation_id="get_jobs",
@@ -549,3 +573,4 @@ def create_routes(app: FastAPI):
         )
 
     return router
+    register_apns_device,

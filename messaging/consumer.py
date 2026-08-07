@@ -18,7 +18,7 @@ from scrapers.resultNotificationScraper import refresh_notifications
 from scrapers.resultScraper import ResultScraper
 from scrapers.serverChecker import check_url
 from subscriptions.send_notification import send_push_notification_to_particular_user
-from subscriptions.firebase_notification import notify_student_result_updated
+from subscriptions.mobile_notification import notify_student_result_updated
 from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
 
@@ -143,7 +143,7 @@ async def process_message(message_body: str) -> bool:
                 await notify_student_result_updated(message_body)
             except Exception as error:
                 logger.error(
-                    f"Firebase student result notification failed for {message_body}: {error}"
+                    f"Mobile student result notification failed for {message_body}: {error}"
                 )
         return True
 

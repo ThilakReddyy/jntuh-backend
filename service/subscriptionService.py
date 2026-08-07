@@ -1,6 +1,8 @@
-from database.models import PushSub, ResultDeviceSubscriptionPayload
+from database.models import APNSDeviceRegistrationPayload, PushSub, ResultDeviceSubscriptionPayload
 from database.operations import (
+    delete_apns_device_for_device,
     delete_result_device_subscriptions_for_device,
+    save_apns_device,
     save_result_device_subscription,
     save_subscription_details,
 )
@@ -25,3 +27,13 @@ async def delete_result_subscriptions(device_id: str):
         "msg": "Result notification subscriptions deleted",
         "deleted": deleted,
     }
+
+
+async def register_apns_device(data: APNSDeviceRegistrationPayload):
+    await save_apns_device(data)
+    return {"msg": "APNs device registered"}
+
+
+async def unregister_apns_device(device_id: str):
+    deleted = await delete_apns_device_for_device(device_id)
+    return {"msg": "APNs device unregistered", "deleted": deleted}

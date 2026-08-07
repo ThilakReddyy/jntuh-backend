@@ -1,6 +1,6 @@
 from typing import Any, List, Literal, TypedDict
 from prisma.models import student, mark
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from config.branchDetails import get_branch_name
 from config.settings import SEMESTERS
@@ -25,6 +25,8 @@ class ResultDeviceSubscriptionPayload(BaseModel):
     deviceId: str
     deviceToken: str
     rollNumber: str
+    platform: Literal["android", "ios"] = "android"
+    environment: Literal["sandbox", "production"] | None = None
 
     @field_validator("deviceId")
     @classmethod
@@ -38,8 +40,14 @@ class ResultDeviceSubscriptionPayload(BaseModel):
     def validate_device_token(cls, value: str) -> str:
         token = value.strip()
         if not token or len(token) > 512:
-            raise ValueError("Invalid Firebase device token")
+            raise ValueError("Invalid device token")
         return token
+
+    @model_validator(mode="after")
+    def validate_ios_environment(self):
+        if self.platform == "ios" and self.environment is None:
+            raise ValueError("APNs environment is required for iOS")
+        return self
 
     @field_validator("rollNumber")
     @classmethod
@@ -48,6 +56,27 @@ class ResultDeviceSubscriptionPayload(BaseModel):
         if len(roll_number) != 10 or not roll_number.isalnum():
             raise ValueError("Roll number must be 10 alphanumeric characters")
         return roll_number
+
+
+class APNSDeviceRegistrationPayload(BaseModel):
+    deviceId: str
+    deviceToken: str
+    environment: Literal["sandbox", "production"]
+
+    @field_validator("deviceId")
+    @classmethod
+    def validate_device_id(cls, value: str) -> str:
+        from uuid import UUID
+
+        return str(UUID(value))
+
+    @field_validator("deviceToken")
+    @classmethod
+    def validate_device_token(cls, value: str) -> str:
+        token = value.strip().lower()
+        if not 32 <= len(token) <= 512 or any(character not in "0123456789abcdef" for character in token):
+            raise ValueError("Invalid APNs device token")
+        return token
 
 
 class GraceMarkEntry(BaseModel):

@@ -9,7 +9,7 @@ from config.settings import (
     NOTIFICATIONS_REDIS_KEY,
 )
 from database.operations import save_exam_codes
-from subscriptions.firebase_notification import broadcast_result_notifications
+from subscriptions.mobile_notification import broadcast_result_notifications
 from utils.helpers import send_telegram_notification
 from utils.logger import logger
 

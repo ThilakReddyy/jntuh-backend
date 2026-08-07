@@ -1,14 +1,23 @@
+import asyncio
 from datetime import datetime, timedelta
 import json
 
 from collections import defaultdict
 
 from prisma.types import GraceMarksProofWhereInput, examcodesWhereInput
+from prisma.errors import UniqueViolationError
 from config.connection import prismaConnection
 from config.settings import RESULTS
-from database.models import PushSub, ResultDeviceSubscriptionPayload
+from database.models import (
+    APNSDeviceRegistrationPayload,
+    PushSub,
+    ResultDeviceSubscriptionPayload,
+)
 from utils.helpers import format_date
 from utils.logger import database_logger
+
+
+_apns_device_registration_lock = asyncio.Lock()
 
 
 async def save_details(details):
@@ -360,22 +369,27 @@ async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload)
         data={
             "update": {
                 "deviceToken": data.deviceToken,
-                "platform": "android",
+                "platform": data.platform,
+                "environment": data.environment,
             },
             "create": {
                 "deviceId": data.deviceId,
                 "deviceToken": data.deviceToken,
                 "rollNumber": data.rollNumber,
-                "platform": "android",
+                "platform": data.platform,
+                "environment": data.environment,
             },
         },
     )
 
 
-async def get_result_device_subscriptions(roll_number: str):
-    return await prismaConnection.prisma.resultdevicesubscription.find_many(
-        where={"rollNumber": roll_number}
-    )
+async def get_result_device_subscriptions(
+    roll_number: str, platform: str | None = None
+):
+    where = {"rollNumber": roll_number}
+    if platform:
+        where["platform"] = platform
+    return await prismaConnection.prisma.resultdevicesubscription.find_many(where=where)
 
 
 async def delete_result_device_subscriptions(ids: list[str]):
@@ -388,6 +402,64 @@ async def delete_result_device_subscriptions(ids: list[str]):
 
 async def delete_result_device_subscriptions_for_device(device_id: str):
     return await prismaConnection.prisma.resultdevicesubscription.delete_many(
+        where={"deviceId": device_id}
+    )
+
+
+async def save_apns_device(data: APNSDeviceRegistrationPayload):
+    # APNs may deliver the same token callback more than once, and multiple app
+    # sync triggers can consequently reach this endpoint together. Serialize
+    # registrations in this process and retry a database-level race so the PUT
+    # remains idempotent even when another worker inserts the token first.
+    async with _apns_device_registration_lock:
+        last_conflict = None
+        for _ in range(3):
+            token_owner = await prismaConnection.prisma.pushdevice.find_unique(
+                where={"deviceToken": data.deviceToken}
+            )
+            if token_owner and token_owner.deviceId != data.deviceId:
+                await delete_result_device_subscriptions_for_device(
+                    token_owner.deviceId
+                )
+                await prismaConnection.prisma.pushdevice.delete_many(
+                    where={"id": token_owner.id}
+                )
+            try:
+                return await prismaConnection.prisma.pushdevice.upsert(
+                    where={"deviceId": data.deviceId},
+                    data={
+                        "update": {
+                            "deviceToken": data.deviceToken,
+                            "environment": data.environment,
+                        },
+                        "create": {
+                            "deviceId": data.deviceId,
+                            "deviceToken": data.deviceToken,
+                            "environment": data.environment,
+                        },
+                    },
+                )
+            except UniqueViolationError as error:
+                last_conflict = error
+        if last_conflict is not None:
+            raise last_conflict
+        raise RuntimeError("APNs device registration failed without a database result")
+
+
+async def get_apns_devices():
+    return await prismaConnection.prisma.pushdevice.find_many()
+
+
+async def delete_apns_devices(ids: list[str]):
+    if not ids:
+        return None
+    return await prismaConnection.prisma.pushdevice.delete_many(
+        where={"id": {"in": ids}}
+    )
+
+
+async def delete_apns_device_for_device(device_id: str):
+    return await prismaConnection.prisma.pushdevice.delete_many(
         where={"deviceId": device_id}
     )
 
