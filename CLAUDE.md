@@ -1,105 +1,167 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Repository guidance for AI coding assistants and maintainers. Read `architecture.md` before changing result retrieval, queueing, persistence, or cache behavior.
 
-## Stack
+## Product priority
 
-FastAPI + Prisma (Python client) + PostgreSQL + Redis + RabbitMQ. The deployed app sits behind Cloudflare and a reverse proxy on EC2 (see `.github/workflows/deploy.yml`); container build is `Dockerfile`, dev infra is `docker-compose.yml`.
+Student results are the primary feature. Preserve the cache-first read path and asynchronous scrape behavior before optimizing supporting features such as jobs, content, chatbot, or grace-marks proof review.
 
-## Common commands
+## Stack and processes
+
+- FastAPI routes in `api/routes.py`, with orchestration in `service/`.
+- Prisma Python client with PostgreSQL as the source of truth.
+- Redis for derived responses, upstream URL state, rate limits, locks, and class-processing suppression.
+- RabbitMQ for per-student and class result scrape work.
+- `main.py` runs the API plus notification/job schedulers.
+- `main2.py` runs the RabbitMQ result worker.
+- The `Dockerfile` starts both Python processes in one container; they can be run separately during development.
+
+See `architecture.md` for the component model and end-to-end flows.
+
+## Local setup and commands
+
+Create `.env` from `.env.example` and replace all placeholder credentials before importing application modules. `config/settings.py` exits the process during import when a required variable is absent.
 
 ```bash
-# Bring up Postgres / Redis / RabbitMQ / Prometheus / Grafana / Loki (the `app` service is commented out — run the API on the host)
+# Python environment
+python -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+
+# Infrastructure only; the committed app service is commented out
 docker-compose up -d
 
-# Generate the Prisma client and apply schema. Run after editing prisma/schema.prisma or on first setup.
+# Prisma client/schema
 prisma generate
 prisma db push
 
-# Run the API (host)
+# Run these in separate terminals
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-# Run the RabbitMQ consumer (must run alongside the API for any scrape to complete)
 python main2.py
 
-# Stress / load test
+# Verification
+python -m pytest -q
+pyright
+
+# Load test after the API is running
 locust -f tests/locustfile.py --host http://localhost:8000
 ```
 
-There is no unit-test suite or linter wired up. `pyrightconfig.json` enables Pyright type checks rooted at `./`. The `tests/` directory contains only Locust load tests.
+The repository has pytest coverage for the API guard, OpenAPI, chatbot, CMM generation/classification gate, jobs, subscriptions, Android/iOS notifications, class consumption, and RabbitMQ publishing. It also has Locust load tests. `pyrightconfig.json` roots type checking at the repository root.
 
-Required env vars (validated at startup in `config/settings.py` — the process exits if any are missing): `RABBITMQ_URL`, `DATABASE_URL`, `QUEUE_NAME`, `REDIS_URL`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`. Optional: `S3_ENDPOINT_URL` (point at MinIO locally; leave unset for real S3), `S3_PUBLIC_URL_BASE` (override of the public-fetch URL), and the CMM verification settings `GEMINI_API_KEY`, `GEMINI_MODEL`, and `CMM_REFERENCE_PATH`. CMM uploads fail closed with HTTP 503 when Gemini verification is not configured. See `.env.example` for the local format.
+At the current revision, `tests/test_rabbitmq_publisher.py` expects a class queue with four messages to accept another item, while `CLASS_RESULTS_QUEUE_MAX_MESSAGES` is 3 and the publisher rejects at that threshold. Keep the test and production constant aligned when changing this area.
 
-Local S3 (MinIO) is brought up by `docker-compose up -d` on `localhost:9000` (API) and `localhost:9001` (console). The bucket must exist before the upload endpoint will work — once per machine: `mc alias set local http://localhost:9000 minioadmin minioadmin && mc mb local/jntuh-grace-proofs`.
+## Environment configuration
 
-## Architecture
+Startup-required variables are defined by `required_env_vars` in `config/settings.py`:
 
-The system has two long-running Python processes that share Postgres / Redis / RabbitMQ:
+- `RABBITMQ_URL`, `DATABASE_URL`, `QUEUE_NAME`, `REDIS_URL`
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+- `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`
+- `GRACE_MARKS_ADMIN_KEY`
 
-1. **API** (`main.py`) — FastAPI app. Routes live in `api/routes.py` and delegate to `service/*`. Lifespan hook opens RabbitMQ + Prisma + Redis.
-2. **Consumer** (`main2.py` → `messaging/consumer.py`) — pulls roll numbers off `QUEUE_NAME`, runs `scrapers/resultScraper.py` against the JNTUH results servers, persists via `database/operations.py`, and invalidates the student's Redis keys via `utils/caching.py:invalidate_all_cache`.
+Important optional groups:
 
-### Read path (read-through cache → DB → queued scrape)
+- API/docs: `API_ACCESS_KEY`, `ENVIRONMENT`
+- S3-compatible development storage: `S3_ENDPOINT_URL`, `S3_PUBLIC_URL_BASE`
+- CMM verification: `GEMINI_API_KEY`, `GEMINI_MODEL`, `CMM_REFERENCE_PATH`
+- Chatbot: `CHATBOT_API_KEY`, `CHATBOT_BASE_URL`, `CHATBOT_MODEL`, and bounded timeout/tool/output settings
+- Android push: `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_PROJECT_ID`, `FCM_RESULTS_TOPIC`
+- iOS push: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY` or `APNS_PRIVATE_KEY_PATH`
+- Class work: `CLASS_RESULTS_QUEUE_NAME`
+- Job sources: `JOB_ATS_BOARDS_JSON`
 
-For a result-style endpoint (e.g. `service/getResultsService.py:fetch_results`):
+Never commit `.env`, service-account JSON, APNs `.p8` files, private keys, access tokens, or real production identifiers. The current Compose file does not define MinIO. To use local object storage, run an S3-compatible service separately and point `S3_ENDPOINT_URL` at it; `utils/s3.py` creates the configured bucket lazily for custom endpoints.
 
-1. Check Redis (`<rollNo>Results`, `<rollNo>ALL`, `<rollNo>Backlogs`, `<rollNo>RequiredCredits`) — return immediately on hit, with a live `serverStatus` flag derived from `scrapers/serverChecker.py:check_valid_url_in_redis`.
-2. On miss, read from Postgres via Prisma (`database/operations.py:get_details`). If found, cache for `EXPIRY_TIME` (1200 s) and **also** publish a refresh message to RabbitMQ.
-3. On full miss, return `202 Accepted` from `messaging/publisher.py:publish_message` and let the consumer scrape asynchronously.
+## Result read path
 
-Implication: every successful read also schedules a re-scrape. When changing this flow, keep the cache key naming consistent — `utils/caching.py:invalidate_all_cache` knows them by hard-coded suffix and must be updated in lockstep.
+All student result views derive from normalized attempts in PostgreSQL:
 
-### Scraper
+1. Look up the view-specific Redis key.
+2. On cache miss, load the student and marks from PostgreSQL.
+3. If stored data exists, project it into the requested view and cache it.
+4. Only the consolidated academic-result DB-hit path currently schedules a background freshness scrape. Do not describe or implement every stored read as refreshing automatically.
+5. If no stored student exists, publish the roll number and return `202 Accepted`.
+6. The worker scrapes JNTUH, upserts normalized records, invalidates the main student keys, and notifies subscribers when new marks were inserted.
 
-`scrapers/resultScraper.py:ResultScraper` fans out concurrent `aiohttp` requests across exam codes loaded from `data/examCodes.py`. Per-degree URL payloads are in `_load_payloads`. Two grade-to-GPA tables exist — the regular one and a separate B.Pharm R22 table; selection is via `utils/helpers.py:isbpharmacyr22` (rule: 6th char `R` and grad-year ≥ 23, or year `22` with non-`5` 5th char). Match this discriminator everywhere a GPA is computed.
+Primary keys and TTLs:
 
-`scrapers/serverChecker.py` probes two upstream JNTUH hosts (`results.jntuh.ac.in` and the IP fallback `202.63.105.184`) and caches the working URL in Redis under the key `url`. The publisher refuses to enqueue if this resolves to `.` (sentinel for "both upstreams down") and returns `424 Failed Dependency`.
+- `<rollNo>Results`, `<rollNo>ALL`, `<rollNo>Backlogs`, and `<rollNo>RequiredCredits`: 1,200 seconds.
+- `<rollNo1><rollNo2>ResultContrast`: 1,200 seconds, but not deleted by `invalidate_all_cache()`.
+- `<classPrefix>Results+<type>`: 600 seconds, also outside per-student invalidation.
 
-### Messaging back-pressure
+When adding a result cache, update invalidation deliberately or document why TTL-only expiry is acceptable.
 
-`messaging/publisher.py:publish_message` checks `queue.declaration_result.message_count` against `RABBITMQ_MAX_MESSAGES` (4000) and returns `429` when the queue is saturated. Class-level requests use `RABBITMQ_CLASS_MAX_MESSAGES` (200). Each enqueue also adds the roll number to a Redis set `rabbitmq_roll_numbers` for de-dup; the consumer SREMs it on success.
+## Scraping and grading invariants
 
-### Notifications path
+- `scrapers/serverChecker.py` probes the canonical JNTUH host and IP fallback. Redis key `url` stores the selected URL; `.` means neither is available.
+- `ResultScraper` selects payloads from the roll-number pattern and concurrently requests relevant exam codes.
+- `mark` uniqueness includes student, semester, exam, subject, RCRV, and grace flags. Preserve regular, supplementary, RCRV, and grace attempts as distinct records.
+- Consolidated views choose the best attempt in `database/models.py`.
+- GPA calculation must use `utils.helpers.isbpharmacyr22()` everywhere the B.Pharm R22 table matters.
+- Use `utils.helpers.validateRollNo` for public roll-number inputs instead of reimplementing validation.
 
-`scrapers/resultNotificationScraper.py` (driven on demand by enqueueing the sentinel `NOTIFICATIONS_REDIS_KEY = "notificationsi"` to the same queue) refreshes JNTUH result notifications, fans out push notifications via `subscriptions/send_notification.py` and Telegram via `utils/helpers.py:send_telegram_notification`. Notification API responses are cached for 5 min (`FIVE_MINUTE_EXPIRY`) per filter combination.
+## Queue behavior
 
-### Data shape
+- Normal queue: `QUEUE_NAME`; the publisher returns 429 only when the current count is greater than `RABBITMQ_MAX_MESSAGES` (4,000).
+- Class queue: `CLASS_RESULTS_QUEUE_NAME`, default `classresults`; the publisher refuses at `CLASS_RESULTS_QUEUE_MAX_MESSAGES` (3).
+- Class reads refuse work when the normal queue exceeds `RABBITMQ_CLASS_MAX_MESSAGES` (500) and publish a refresh only while it is below `RABBITMQ_CLASS_PUBLISH_MAX_MESSAGES` (50).
+- Worker prefetch is 2 for normal messages and 1 for class batches.
+- Class batches stop after 20 consecutive empty roll numbers and set paired Redis suppression keys for 24 hours.
+- `RABBITMQ_ROLL_NUMBERS` is currently removed by the consumer but is not added by `messaging/publisher.py`; do not claim active Redis-set de-duplication without implementing both sides.
 
-Prisma schema (`prisma/schema.prisma`):
-- `student` 1—∞ `mark` ∞—1 `subject`. Uniqueness on `(studentId, semesterCode, examCode, subjectId, rcrv, graceMarks)` — the same subject can appear under regular, RCRV (revaluation), and Grace variants. Models in `database/models.py` collapse these into a "best grade per subject" view (`studentResultsModel`) using `utils/helpers.py:isGreat`.
-- `examcodes` is the catalog of result-release notifications scraped from JNTUH.
-- `AnonPushSubscription` stores anonymous web-push endpoints by `anonId` UUID.
-- `Job` / `JobLocation` / `JobOnLocation` for the jobs board scraped by `scrapers/jobScraper.py`.
+Class cohort pairing follows JNTUH admission-year/type rules implemented in both `messaging.consumer.get_class_prefixes()` and `service/getClassResults.py`. Do not simplify it to a literal `5↔A` character swap.
 
-### MCP
+## Notifications and schedules
 
-`main.py` mounts an MCP server via `FastApiMCP` at `/mcp` (`mount_http()`), exposing only the read-only `get_*` / `check_*` operation IDs explicitly listed in `include_operations`. Destructive endpoints (`hardRefresh`, `save-subscription`, etc.) are intentionally not exposed. `/connect` serves `static/mcp_setup.html` as a connector setup guide.
+- The API runs `refresh_notifications_periodically()` immediately and every 60 seconds.
+- Notification refresh caches the raw scrape for 30 minutes, upserts `examcodes`, and broadcasts only newly inserted releases through Telegram, FCM, and APNs.
+- Public notification response caches expire after five minutes.
+- The API runs the job scrape immediately and every 24 hours under a Redis lock.
+- Student scrape inserts send legacy Web Push plus Android/iOS result-ready notifications.
 
-### Docs in production
+Provider failures should not roll back already-persisted results or notification metadata.
 
-Setting `ENVIRONMENT=production` disables `/docs`, `/redoc`, and `/openapi.json` (`IS_PRODUCTION` in `config/settings.py`), and `/` redirects to `/connect` instead of `/docs`. Unset or any other value keeps docs enabled. FastApiMCP is unaffected — it reads the schema via `app.openapi()`, not the HTTP route.
+## API, MCP, and security
 
-### Observability
+- `ApiKeyHeaderMiddleware` protects most HTTP routes with `X-Api-Key`. When `API_ACCESS_KEY` is unset, any non-empty value passes.
+- Exact/prefix mobile User-Agents bypass the header guard. Treat this as a compatibility filter, not strong authentication.
+- `/mcp`, `/metrics`, docs, `/`, `/connect`, and preflight requests are exempt. `/api/health` is not exempt.
+- Default rate limit is 30/minute by originating IP with Redis storage and an in-memory fail-open fallback. `/mcp` is exempt; sensitive routes define tighter limits.
+- MCP exposes only the GET operations in `config/mcp.py`. Keep mutation/admin operations out of the allowlist.
+- The chatbot may call only that same read-only MCP tool set.
+- `ENVIRONMENT=production` disables public Swagger, ReDoc, and OpenAPI routes but not internal schema generation for MCP.
 
-- Prometheus instrumentation auto-mounted at `/metrics` via `prometheus_fastapi_instrumentator`.
-- Loki logging via a single shared `LokiQueueHandler` pushing to `http://localhost:3100`. Per-component file loggers (`rabbitmq.log`, `database.log`, `redis.log`, `scraper.log`, `telegram.log`, `app.log`) are configured in `utils/logger.py` and re-used across modules — import the right named logger instead of creating a new one.
-- Grafana dashboards reach Postgres / Redis via `postgres_exporter` and `redis_exporter` sidecars defined in `docker-compose.yml`.
+See `SECURITY.md` before changing authentication, admin routes, uploads, secrets, or dependency versions.
 
-### Rate limiting
+## Grace marks and storage
 
-`config/rateLimiter.py` defines a shared `slowapi` `Limiter` keyed by the real client IP (resolved from `CF-Connecting-IP` → `X-Forwarded-For` → socket peer, in that order — required because the app runs behind Cloudflare). Default limit is `30/minute`, storage is Redis with in-memory fallback, and it fails open on Redis errors. Wired into `main.py` via `ExemptingSlowAPIMiddleware` (also defined in `rateLimiter.py`), which short-circuits paths under `EXEMPT_PATH_PREFIXES` — currently `/mcp`, since slowapi 0.1.10 does not actually auto-skip mounted sub-apps despite the docs. SlowAPI is added before CORS so CORS sits outermost and 429 responses still carry `Access-Control-Allow-Origin`.
+- Eligibility requires B.Tech/B.Pharm, stored 4-2 marks, and remaining backlogs.
+- Proof upload repeats eligibility checks, enforces PDF/PNG/JPEG and 5 MB, and fails closed when Gemini verification is unavailable.
+- Upload only a confirmed CMM to S3-compatible storage, then persist its metadata.
+- Admin proof review and grace-mark writes require `GRACE_MARKS_ADMIN_KEY`.
+- Grace-mark writes invalidate the primary per-student result keys.
+- `/api/getCMM` generates a watermarked sample PDF and is separate from uploaded proof storage.
 
-### API header guard
+## Observability
 
-`config/apiHeaderGuard.py:ApiKeyHeaderMiddleware` rejects any request without a non-empty `X-Api-Key` header (403) before it reaches the rate limiter or a route. If the optional `API_ACCESS_KEY` env var is set (it is, in `.env`), the header value must match it exactly; unset means presence-only. The web frontend sends the same value from its `NEXT_PUBLIC_API_KEY` env var via an axios interceptor in `JNTUHRESULTS-WEB/lib/apiClient.ts` — the two must be kept in sync. Swagger UI exposes an Authorize dialog backed by the OpenAPI `ApiKeyAuth` scheme; a token entered there is sent as `X-Api-Key` by “Try it out” requests, without embedding the token in the schema. Its server selector offers `http://localhost:8000/` for local development and `https://jntuhresults.dhethi.com/` for production. Requests whose User-Agent is exactly `JNTUH-Connect-iOS/1.0`, or starts with `okhttp/` or `Dalvik/` (the JNTUH Connect mobile clients), bypass the header check entirely — the apps send no custom header by design. Exempt: `/mcp`, `/metrics`, `/docs`, `/redoc`, `/openapi.json`, `/`, `/connect`, and `OPTIONS` preflights. Note `/api/health` is NOT exempt — external uptime monitors must send the header or the path must be added to `GUARD_EXEMPT_PATH_PREFIXES`. Added between SlowAPI and CORS in `main.py` so CORS stays outermost. FastApiMCP executes tool calls by re-entering the app over an in-process ASGI transport, so those hit this guard too — `main.py` passes it a custom `http_client` whose default headers carry the key; don't remove it or every MCP tool call 403s.
+- FastAPI metrics: `/metrics`.
+- Prometheus also scrapes RabbitMQ and Redis/PostgreSQL exporters.
+- Component logs go to files/stdout and Loki through `utils/logger.py`.
+- The Loki endpoint is currently hard-coded, so account for host-versus-container networking before changing deployment topology.
 
-## Conventions worth knowing
+## Deployment caveat
 
-- Roll numbers are validated by `utils/helpers.py:validateRollNo` (10 chars, alphanumeric, upper-cased). Always go through this dependency rather than hand-validating.
-- Class-results endpoints derive the section from `roll_number[:8]` and look up the paired day/evening cohort by swapping the 5th char with the rule `5↔A`.
-- B.Tech credit thresholds for `getCreditsChecker` are hard-coded in `utils/helpers.py:get_credit_regulation_details` keyed on regulation (`R18` / `R22`) and entry type (`Regular` / `Lateral`, decided by `roll_number[4]`). Other degrees return a failure response.
-- The frontend origins allowed in CORS are hard-coded in `main.py` (`jntuhresults.dhethi.com`, `jntuhconnect.dhethi.com`, `dhethi.com`, `localhost:3000`). Add new origins there, not via env.
+Pushes to `main` trigger `.github/workflows/deploy.yml`, which expects a Compose service named `app`. That service is commented out in the committed `docker-compose.yml`. Production therefore needs an environment-specific Compose override or an enabled service before the workflow commands can succeed. Do not document the committed Compose file as a complete production deployment.
 
-## Deploy
+See `DEPLOYMENT.md` for the deployment contract and `RUNBOOK.md` for incident procedures.
 
-`main` → GitHub Actions (`.github/workflows/deploy.yml`) → SSH to EC2 → `git reset --hard origin/main` → `docker-compose build app && docker-compose up -d --no-deps app` → `docker system prune -af`. The `app` service is commented in the committed compose file but is expected to exist in the deployed copy.
+## Change checklist
+
+- Keep route operation IDs stable when MCP clients depend on them.
+- Keep cache keys, TTLs, and invalidation synchronized.
+- Update Prisma generation/schema instructions when modifying `prisma/schema.prisma`.
+- Add or update tests for queue thresholds, response projections, auth exemptions, and notification contracts.
+- Update `architecture.md`, `RUNBOOK.md`, and deployment/security docs when behavior changes.
+- Preserve unrelated local changes in a dirty worktree.

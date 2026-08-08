@@ -86,31 +86,60 @@ sequenceDiagram
 
 See [architecture.md](architecture.md) for the architecture diagrams, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
 
+## Documentation
+
+| Guide | Purpose |
+| --- | --- |
+| [Architecture](architecture.md) | Components, result lifecycle, data model, queues, security boundaries, and deployment topology. |
+| [Contributing](CONTRIBUTING.md) | Local setup, validation, development rules, and pull request expectations. |
+| [Deployment](DEPLOYMENT.md) | Production prerequisites, environment contract, release verification, and rollback. |
+| [Security](SECURITY.md) | Vulnerability reporting, security boundaries, secrets, and hardening guidance. |
+| [Operations runbook](RUNBOOK.md) | Triage and recovery procedures for result, queue, datastore, provider, and monitoring incidents. |
+
 
 ## Installation & Setup  
 
-1. **Prerequisites:**
+1. **Prerequisites**
 
-   Ensure you have **Docker** and **Docker Compose** installed.
+   Install Python 3.11, Docker, and Docker Compose.
 
-2. **Clone the repository:**
+2. **Clone and install dependencies**
 
    ```bash
    git clone https://github.com/thilakreddyy/jntuh-backend.git
-   ```
-   
-3. **Navigate to the project directory:**
-
-   ```bash
    cd jntuh-backend
+   python -m venv venv
+   source venv/bin/activate
+   python -m pip install -r requirements.txt
    ```
 
-4. **Build and start the Docker containers:**
+3. **Configure the environment**
 
    ```bash
-   docker-compose up --build
+   cp .env.example .env
    ```
-   This command will build the Docker images and start the services defined in the docker-compose.yml file.
+
+   Replace the placeholder credentials and endpoints in `.env`.
+
+4. **Start infrastructure and prepare Prisma**
+
+   ```bash
+   docker-compose up -d db redis rabbitmq
+   prisma generate
+   prisma db push
+   ```
+
+5. **Run the API and result worker in separate terminals**
+
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+   ```bash
+   python main2.py
+   ```
+
+The committed Compose file provides infrastructure while its application service remains commented out. See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup.
 
 ## Usage
 
@@ -154,13 +183,7 @@ Only these query operations are exposed; destructive and administrative endpoint
 
 ## Contributing
 
-  Contributions are welcome! Please follow these steps:
-  
-1. Fork the repository.
-2. Create a new branch (git checkout -b feature/YourFeature).
-3. Commit your changes (git commit -m 'Add YourFeature').
-4.  Push to the branch (git push origin feature/YourFeature).
-5.  Open a Pull Request.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, development rules, and the pull request checklist.
 
 ## License
 
