@@ -69,6 +69,36 @@ For a student message, the worker finds a reachable JNTUH result host, loads alr
 
 ## Primary result lifecycle
 
+### Results architecture diagram
+
+```mermaid
+flowchart TD
+    client[Web, Android, iOS, or MCP client] --> edge[Cloudflare and reverse proxy]
+    edge --> api[FastAPI result endpoints]
+    api --> cache{Result view in Redis?}
+
+    cache -->|Yes| response[Return result]
+    cache -->|No| db{Student marks in PostgreSQL?}
+    db -->|Yes| derive[Build academic, all-attempt, backlog, credits, or class view]
+    derive --> storeCache[Cache derived view]
+    storeCache --> response
+    derive -. academic-result freshness refresh .-> queue[(RabbitMQ)]
+
+    db -->|No| queue
+    queue --> accepted[Return 202 queued]
+    queue --> worker[Result worker]
+    worker --> upstream[JNTUH result servers]
+    upstream --> scraper[Parse and normalize exam attempts]
+    scraper --> persist[Upsert students, subjects, and marks]
+    persist --> postgres[(PostgreSQL)]
+    persist --> invalidate[Invalidate student result caches]
+    invalidate --> redis[(Redis)]
+    persist --> notify[Web Push, Firebase, and APNs]
+
+    api <--> redis
+    api <--> postgres
+```
+
 ### Read path
 
 The principal result endpoints are consolidated academic results, all attempts, backlogs, required credits, result contrast, class results, CMM sample generation, and grace-marks eligibility.

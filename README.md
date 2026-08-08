@@ -42,39 +42,16 @@ This FastAPI-based service provides access to **student results, academic record
 - **Monitoring**: Prometheus, Grafana
 - **AI Integration**: Model Context Protocol (MCP)
 
-## 🏗 System Architecture
+## 🔄 Result Read Path
 
-The backend is centered on fast result reads with asynchronous refreshes. Redis serves derived result views, PostgreSQL is the source of truth, and RabbitMQ keeps slow JNTUH scraping outside the request path.
+Result requests use a cache-first, asynchronous-refresh flow:
 
-```mermaid
-flowchart TD
-    client[Web, Android, iOS, or MCP client] --> edge[Cloudflare and reverse proxy]
-    edge --> api[FastAPI result endpoints]
-    api --> cache{Result view in Redis?}
+1. Return the requested result view immediately when it exists in Redis.
+2. On a cache miss, build the view from student marks stored in PostgreSQL and cache it.
+3. If the student is not in PostgreSQL, publish the roll number to RabbitMQ and return `202 Accepted`.
+4. The result worker scrapes JNTUH, persists normalized exam attempts, invalidates the student's cached views, and sends a result-ready notification.
 
-    cache -->|Yes| response[Return result]
-    cache -->|No| db{Student marks in PostgreSQL?}
-    db -->|Yes| derive[Build academic, all-attempt, backlog, credits, or class view]
-    derive --> storeCache[Cache derived view]
-    storeCache --> response
-    derive -. academic-result freshness refresh .-> queue[(RabbitMQ)]
-
-    db -->|No| queue
-    queue --> accepted[Return 202 queued]
-    queue --> worker[Result worker]
-    worker --> upstream[JNTUH result servers]
-    upstream --> scraper[Parse and normalize exam attempts]
-    scraper --> persist[Upsert students, subjects, and marks]
-    persist --> postgres[(PostgreSQL)]
-    persist --> invalidate[Invalidate student result caches]
-    invalidate --> redis[(Redis)]
-    persist --> notify[Web Push, Firebase, and APNs]
-
-    api <--> redis
-    api <--> postgres
-```
-
-See [architecture.md](architecture.md) for the validated component model, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
+See [architecture.md](architecture.md) for the architecture diagrams, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
 
 
 ## Installation & Setup  
