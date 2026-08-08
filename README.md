@@ -1,13 +1,18 @@
-# JNTUH Results BACKEND 
+# JNTUH Results BACKEND
 
-[![License](https://img.shields.io/github/license/thilakreddyy/jntuhresults-web.svg)](https://github.com/ThilakReddyy/jntuh-backend/blob/main/LICENSE)
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/thilakreddyy/jntuh-backend.svg)
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fjntuhresults.dhethi.com%2Fconnect&Website-Jntuh%20Results-blue?style=flat&logo=world&logoColor=white)](https://jntuhresults.dhethi.com/connect)
+<p align="center">
+  <a href="https://github.com/ThilakReddyy/jntuh-backend/actions/workflows/deploy.yml"><img src="https://github.com/ThilakReddyy/jntuh-backend/actions/workflows/deploy.yml/badge.svg" alt="Deployment status"/></a>
+  <a href="https://github.com/ThilakReddyy/jntuh-backend"><img src="https://img.shields.io/github/languages/code-size/ThilakReddyy/jntuh-backend?style=flat-square" alt="Code size"/></a>
+  <a href="https://github.com/ThilakReddyy/jntuh-backend/commits/main"><img src="https://img.shields.io/github/last-commit/ThilakReddyy/jntuh-backend?style=flat-square" alt="Last commit"/></a>
+  <a href="https://github.com/ThilakReddyy/jntuh-backend/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThilakReddyy/jntuh-backend?style=flat-square" alt="License"/></a>
+  <img src="https://img.shields.io/badge/quality-Pyright%20%2B%20pytest-3776AB?style=flat-square&logo=python&logoColor=white" alt="Quality checks: Pyright and pytest"/>
+</p>
 
 
 This FastAPI-based service provides access to **student results, academic records, and backlog details**. It integrates with **PostgreSQL**, **Redis**, and **RabbitMQ** for efficient data handling and messaging.
 
-![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/Rabbitmq-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)
