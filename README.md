@@ -44,17 +44,37 @@ This FastAPI-based service provides access to **student results, academic record
 
 ## 🏗 System Architecture
 
-   The following diagrams illustrate the components and overall architecture of the FastAPI-based results service.
+The backend is centered on fast result reads with asynchronous refreshes. Redis serves derived result views, PostgreSQL is the source of truth, and RabbitMQ keeps slow JNTUH scraping outside the request path.
 
-### **Component Diagram**  
-This diagram shows how different services interact in the system.  
+```mermaid
+flowchart TD
+    client[Web, Android, iOS, or MCP client] --> edge[Cloudflare and reverse proxy]
+    edge --> api[FastAPI result endpoints]
+    api --> cache{Result view in Redis?}
 
-![Component Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/assests/component-diagram.png)  
+    cache -->|Yes| response[Return result]
+    cache -->|No| db{Student marks in PostgreSQL?}
+    db -->|Yes| derive[Build academic, all-attempt, backlog, credits, or class view]
+    derive --> storeCache[Cache derived view]
+    storeCache --> response
+    derive -. academic-result freshness refresh .-> queue[(RabbitMQ)]
 
-### **Architecture Diagram**  
-This diagram outlines the flow of requests and data within the system.  
+    db -->|No| queue
+    queue --> accepted[Return 202 queued]
+    queue --> worker[Result worker]
+    worker --> upstream[JNTUH result servers]
+    upstream --> scraper[Parse and normalize exam attempts]
+    scraper --> persist[Upsert students, subjects, and marks]
+    persist --> postgres[(PostgreSQL)]
+    persist --> invalidate[Invalidate student result caches]
+    invalidate --> redis[(Redis)]
+    persist --> notify[Web Push, Firebase, and APNs]
 
-![Architecture Diagram](https://github.com/ThilakReddyy/jntuh-backend/blob/main/assests/architecture-diagram-horizontal.png)  
+    api <--> redis
+    api <--> postgres
+```
+
+See [architecture.md](architecture.md) for the validated component model, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
 
 
 ## Installation & Setup  
