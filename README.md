@@ -47,28 +47,41 @@ This FastAPI-based service provides access to **student results, academic record
 Result requests use a cache-first, asynchronous-refresh flow:
 
 ```mermaid
-flowchart TD
-    request[Client requests a result view] --> api[FastAPI validates the roll number]
-    api --> cache{View cached in Redis?}
+sequenceDiagram
+    actor Client
+    participant API as FastAPI result service
+    participant Redis
+    participant DB as PostgreSQL
+    participant MQ as RabbitMQ
+    participant Worker as Result worker
+    participant JNTUH as JNTUH servers
 
-    cache -->|Yes| cached[Return cached result - 200]
-    cache -->|No| database{Student marks in PostgreSQL?}
-
-    database -->|Yes| derive[Build the requested result view]
-    derive --> cacheView[Cache the derived view]
-    cacheView --> stored[Return stored result - 200]
-    derive -. academic-result freshness refresh .-> queue[(RabbitMQ)]
-
-    database -->|No| queue
-    queue --> accepted[Return queued status - 202]
-    queue --> worker[Result worker]
-    worker --> jntuh[JNTUH result servers]
-    jntuh --> normalize[Parse and normalize exam attempts]
-    normalize --> persist[Upsert results in PostgreSQL]
-    persist --> invalidate[Invalidate student result caches]
-    persist --> notify[Send result-ready notification]
-    invalidate --> retry[Client retries the result request]
-    retry --> api
+    Client->>API: GET result view with validated roll number
+    API->>Redis: Read view-specific cache key
+    alt Cache hit
+        Redis-->>API: Serialized derived view
+        API-->>Client: 200 result
+    else Cache miss
+        API->>DB: Load student, marks, and subjects
+        alt Stored result exists
+            DB-->>API: Raw attempt records
+            API->>API: Build requested derived view
+            API->>Redis: Cache derived response with TTL
+            opt Consolidated academic-result view
+                API->>MQ: Queue background freshness scrape
+            end
+            API-->>Client: 200 result
+        else No stored result
+            API->>MQ: Queue roll number
+            API-->>Client: 202 queued
+            MQ->>Worker: Deliver roll number
+            Worker->>JNTUH: Scrape applicable exam codes concurrently
+            JNTUH-->>Worker: Student and subject results
+            Worker->>DB: Upsert student, subjects, and marks
+            Worker->>Redis: Invalidate derived result keys
+            Worker-->>Client: Notify readiness through push providers
+        end
+    end
 ```
 
 See [architecture.md](architecture.md) for the architecture diagrams, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
