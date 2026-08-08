@@ -46,10 +46,30 @@ This FastAPI-based service provides access to **student results, academic record
 
 Result requests use a cache-first, asynchronous-refresh flow:
 
-1. Return the requested result view immediately when it exists in Redis.
-2. On a cache miss, build the view from student marks stored in PostgreSQL and cache it.
-3. If the student is not in PostgreSQL, publish the roll number to RabbitMQ and return `202 Accepted`.
-4. The result worker scrapes JNTUH, persists normalized exam attempts, invalidates the student's cached views, and sends a result-ready notification.
+```mermaid
+flowchart TD
+    request[Client requests a result view] --> api[FastAPI validates the roll number]
+    api --> cache{View cached in Redis?}
+
+    cache -->|Yes| cached[Return cached result - 200]
+    cache -->|No| database{Student marks in PostgreSQL?}
+
+    database -->|Yes| derive[Build the requested result view]
+    derive --> cacheView[Cache the derived view]
+    cacheView --> stored[Return stored result - 200]
+    derive -. academic-result freshness refresh .-> queue[(RabbitMQ)]
+
+    database -->|No| queue
+    queue --> accepted[Return queued status - 202]
+    queue --> worker[Result worker]
+    worker --> jntuh[JNTUH result servers]
+    jntuh --> normalize[Parse and normalize exam attempts]
+    normalize --> persist[Upsert results in PostgreSQL]
+    persist --> invalidate[Invalidate student result caches]
+    persist --> notify[Send result-ready notification]
+    invalidate --> retry[Client retries the result request]
+    retry --> api
+```
 
 See [architecture.md](architecture.md) for the architecture diagrams, detailed result lifecycle, queue limits, data model, supporting subsystems, observability, and deployment topology.
 
