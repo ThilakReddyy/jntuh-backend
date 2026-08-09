@@ -54,7 +54,7 @@ def isbpharmacyr22(roll_number):
 def isGreat(previousGrade, grade):
     previousGradeValue = gradestogpa.get(previousGrade, 0)  # Default to 1 if not found
     gradeValue = gradestogpa.get(grade, 0)  # Default to 1 if not found
-    return previousGradeValue < gradeValue
+    return previousGradeValue <= gradeValue
 
 
 def validateRollNo(rollNumber: str = Query(..., min_length=10, max_length=10)):
