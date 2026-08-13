@@ -32,7 +32,7 @@ from config.settings import API_ACCESS_KEY
 API_KEY_HEADER = "X-Api-Key"
 
 GUARD_EXEMPT_PATH_PREFIXES = ("/mcp", "/metrics", "/docs", "/redoc", "/openapi.json")
-GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect")
+GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect", "/api/health")
 
 # Exact User-Agents (lower-cased) that bypass the header check.
 ALLOWED_USER_AGENTS = ("jntuh-connect-ios/1.0",)
