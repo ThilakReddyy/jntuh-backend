@@ -18,6 +18,10 @@ Exempt from the check:
 - `/metrics` — scraped by Prometheus, which sends no custom headers.
 - `/docs`, `/redoc`, `/openapi.json` — interactive docs pages.
 - `/` and `/connect` — static landing/setup pages.
+- `/api/health` and `/api/health/live` — external uptime monitors and the
+  container HEALTHCHECK, neither of which send custom headers.
+  `/api/health/ready` is deliberately NOT exempt (it discloses per-dependency
+  DB/Redis/RabbitMQ status).
 - `OPTIONS` requests — CORS preflights never carry custom headers; CORS sits
   outermost and normally answers them, this is just a defensive skip.
 """
@@ -32,7 +36,9 @@ from config.settings import API_ACCESS_KEY
 API_KEY_HEADER = "X-Api-Key"
 
 GUARD_EXEMPT_PATH_PREFIXES = ("/mcp", "/metrics", "/docs", "/redoc", "/openapi.json")
-GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect", "/api/health")
+# /api/health/ready is deliberately NOT exempt (unlike /api/health and
+# /api/health/live) — it discloses per-dependency (DB/Redis/RabbitMQ) status.
+GUARD_EXEMPT_EXACT_PATHS = ("/", "/connect", "/api/health", "/api/health/live")
 
 # Exact User-Agents (lower-cased) that bypass the header check.
 ALLOWED_USER_AGENTS = ("jntuh-connect-ios/1.0",)

@@ -2,8 +2,9 @@ import aio_pika
 import asyncio
 import httpx
 import time
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
 from fastapi_mcp import FastApiMCP
@@ -37,6 +38,9 @@ from scrapers.resultNotificationScraper import refresh_notifications_periodicall
 from service.jobsService import refresh_jobs_periodically
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
+from utils.platform import detect_platform
+from utils.platformMetrics import HTTP_REQUESTS_BY_PLATFORM
+from utils.requestContext import get_request_id, set_platform, set_request_id
 
 
 @asynccontextmanager
@@ -155,15 +159,46 @@ instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 @app.middleware("http")
 async def log_request(request, call_next):
+    request_id = set_request_id(request.headers.get("X-Request-Id"))
+    platform = detect_platform(
+        request.headers.get("User-Agent", ""),
+        has_origin=bool(request.headers.get("Origin")),
+    )
+    set_platform(platform)
     start = time.perf_counter()
     response = await call_next(request)
     duration = (time.perf_counter() - start) * 1000
+    response.headers["X-Request-Id"] = request_id
+    HTTP_REQUESTS_BY_PLATFORM.labels(
+        platform=platform, status=str(response.status_code)
+    ).inc()
     logger.info(
         f"{request.client.host} {request.method} {request.url.path} "
-        f"→ {response.status_code} [{duration:.2f} ms]"
+        f"→ {response.status_code} [{duration:.2f} ms] platform={platform}"
     )
 
     return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Safety net for anything the ~38 route-local try/excepts didn't already
+    convert to an HTTPException. Logs the full exception (request_id- and
+    platform-tagged, visible in Loki/Grafana) and never leaks a traceback to
+    the client."""
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}",
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "Internal server error",
+            "request_id": get_request_id(),
+        },
+        headers={"X-Request-Id": get_request_id()},
+    )
 
 
 routes = create_routes(app)

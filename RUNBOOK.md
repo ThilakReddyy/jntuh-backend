@@ -27,15 +27,16 @@ docker-compose exec rabbitmq rabbitmqctl list_queues name messages_ready message
 Public checks:
 
 ```bash
-curl -i -H "X-Api-Key: $JNTUH_API_KEY" https://jntuhresults.dhethi.com/api/health
+curl -fsS https://jntuhresults.dhethi.com/api/health/live
+curl -i -H "X-Api-Key: $JNTUH_API_KEY" https://jntuhresults.dhethi.com/api/health/ready
 curl -fsS https://jntuhresults.dhethi.com/metrics > /dev/null
 ```
 
-`/api/health` is protected by the API header guard. `/metrics` is exempt.
+`/api/health` and `/api/health/live` are exempt from the API header guard (liveness only, no dependency detail). `/api/health/ready` requires `X-Api-Key` and returns a per-dependency (DB/Redis/RabbitMQ) breakdown — use it to pinpoint which dependency is down. `/metrics` is exempt.
 
 ## Logs and metrics
 
-Application/component files:
+Application/component files (structured JSON, rotated at 20MB x5, each record tagged `request_id` and `platform`):
 
 - `app.log`
 - `rabbitmq.log`
@@ -44,7 +45,7 @@ Application/component files:
 - `scraper.log`
 - `telegram.log`
 
-Logs also flow to Loki when its configured endpoint is reachable. Use Prometheus/Grafana to correlate API latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. A local/container networking mismatch in `utils/logger.py` can prevent Loki delivery without stopping application requests.
+Logs also flow to Loki when `LOKI_ENDPOINT` is reachable (must be the in-network service name, e.g. `http://loki:3100/...`, not `localhost`). Use Prometheus/Grafana to correlate API latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. Filter Loki by `request_id` to trace one request end-to-end, or by `platform="android"|"ios"|"web"|"other"` to isolate traffic from one client. There is no separate error-tracking service — a Grafana panel/alert on `level="ERROR"` volume is the error feed (see `main.py`'s global exception handler).
 
 ## Result request returns 202 indefinitely
 
@@ -172,6 +173,10 @@ There are two paths:
 Check scheduler logs, provider credentials, subscription/device rows, provider responses, and whether new database records were actually inserted. Provider outages should not undo completed result persistence.
 
 When multiple API replicas run, each starts a notification scheduler; investigate duplicate scheduler activity separately from provider retry behavior.
+
+### Android scoped-topic broadcasting misbehaving
+
+If degree/regulation-scoped FCM topic routing (`subscriptions/topics.py`) is suspected of causing missed or duplicate Android notifications, set `FCM_SCOPED_TOPICS_ENABLED=false` and restart the API process. This reverts every broadcast to the single global `FCM_RESULTS_TOPIC` topic exactly as before scoped topics existed — every Android install, including ones with a saved degree/regulation preference, keeps receiving every release until the flag is re-enabled. No code rollback or redeploy is required.
 
 ## Grace-marks proof upload fails
 

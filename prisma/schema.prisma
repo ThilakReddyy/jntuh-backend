@@ -105,6 +105,21 @@ model PushDevice {
   @@map("push_devices")
 }
 
+model NotificationPreference {
+  id          String   @id @default(uuid())
+  deviceId    String   @unique @db.Uuid
+  platform    String   @default("android")
+  rollNumber  String?
+  degrees     String[]
+  regulations String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([rollNumber])
+  @@index([platform])
+  @@map("notification_preferences")
+}
+
 model Job {
   id               String          @id @default(uuid())
   externalId       String          @default(uuid())

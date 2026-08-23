@@ -8,8 +8,15 @@ from firebase_admin import credentials, messaging
 
 from config.settings import (
     FCM_RESULTS_TOPIC,
+    FCM_SCOPED_TOPICS_ENABLED,
     FIREBASE_PROJECT_ID,
     GOOGLE_APPLICATION_CREDENTIALS,
+)
+from subscriptions.topics import (
+    normalize_regulations,
+    partition_into_conditions,
+    result_topic_condition,
+    result_topics_for_exam,
 )
 from utils.logger import logger
 
@@ -42,23 +49,58 @@ def _get_firebase_app():
             return firebase_admin.initialize_app(credential, options)
 
 
-def _build_result_message(exam: Mapping[str, Any]) -> messaging.Message:
+def _build_result_messages(exam: Mapping[str, Any]) -> list[messaging.Message]:
+    """Build the FCM message(s) for one newly-detected result release.
+
+    Normally a single message. A release naming enough regulations to exceed
+    FCM's 5-topics-per-condition cap is split into multiple messages, one per
+    `partition_into_conditions` chunk (see subscriptions/topics.py).
+    """
     title = str(exam.get("title") or "A new JNTUH result is available").strip()
     link = str(
         exam.get("link") or "https://jntuhconnect.dhethi.com/academicresult"
     ).strip()
 
-    return messaging.Message(
-        notification=messaging.Notification(
-            title="📢 JNTUH Results Released!",
-            body=title,
-        ),
-        data={
-            "destination": "updates",
-            "link": link,
-        },
-        topic=FCM_RESULTS_TOPIC,
+    notification = messaging.Notification(
+        title="📢 JNTUH Results Released!",
+        body=title,
     )
+    data = {
+        "destination": "updates",
+        "link": link,
+    }
+
+    if not FCM_SCOPED_TOPICS_ENABLED:
+        return [
+            messaging.Message(
+                notification=notification, data=data, topic=FCM_RESULTS_TOPIC
+            )
+        ]
+
+    regulation_raw = exam.get("regulation")
+    if regulation_raw and not normalize_regulations(regulation_raw):
+        logger.warning(
+            f"Unrecognized regulation format for topic routing: {regulation_raw!r} "
+            f"(exam: {title!r})"
+        )
+
+    topics, pinned_count = result_topics_for_exam(exam.get("degree"), regulation_raw)
+
+    if len(topics) == 1:
+        return [
+            messaging.Message(
+                notification=notification, data=data, topic=topics[0]
+            )
+        ]
+
+    return [
+        messaging.Message(
+            notification=notification,
+            data=data,
+            condition=result_topic_condition(chunk),
+        )
+        for chunk in partition_into_conditions(topics, pinned_count)
+    ]
 
 
 def _build_student_result_message(
@@ -116,18 +158,25 @@ async def notify_student_result_updated(roll_number: str) -> None:
     await delete_result_device_subscriptions(invalid_ids)
 
 
-def send_result_notification(exam: Mapping[str, Any]) -> str:
-    """Send one result-release notification to the Android results topic."""
-    message_id = messaging.send(
-        _build_result_message(exam),
-        app=_get_firebase_app(),
-    )
-    logger.info(f"Firebase result notification sent: {message_id}")
-    return message_id
+def send_result_notification(exam: Mapping[str, Any]) -> list[str]:
+    """Send one result-release notification (as 1+ FCM messages) for an exam."""
+    app = _get_firebase_app()
+    message_ids = [
+        messaging.send(message, app=app)
+        for message in _build_result_messages(exam)
+    ]
+    logger.info(f"Firebase result notification(s) sent: {message_ids}")
+    return message_ids
 
 
 def _send_result_notifications(exams: Sequence[Mapping[str, Any]]) -> None:
-    messages = [_build_result_message(exam) for exam in exams]
+    messages: list[messaging.Message] = []
+    message_exams: list[Mapping[str, Any]] = []
+    for exam in exams:
+        for message in _build_result_messages(exam):
+            messages.append(message)
+            message_exams.append(exam)
+
     if not messages:
         return
 
@@ -143,7 +192,7 @@ def _send_result_notifications(exams: Sequence[Mapping[str, Any]]) -> None:
         failure_count += response.failure_count
         for batch_index, send_response in enumerate(response.responses):
             if not send_response.success:
-                exam = exams[batch_start + batch_index]
+                exam = message_exams[batch_start + batch_index]
                 logger.error(
                     "Firebase result notification failed for "
                     f"{exam.get('title', 'unknown result')}: "

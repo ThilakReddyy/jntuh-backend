@@ -21,6 +21,7 @@ from subscriptions.send_notification import send_push_notification_to_particular
 from subscriptions.mobile_notification import notify_student_result_updated
 from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
+from worker.health import worker_state
 
 
 def get_class_prefixes(roll_number: str) -> tuple[str, str]:
@@ -202,6 +203,7 @@ async def consume_messages():
         logger.info("Starting rabbitmq connection for consumer")
 
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
+        worker_state.mark_ready()
 
         logger.info("Starting database connection for consumer")
         await prismaConnection.connect()
@@ -238,4 +240,5 @@ async def consume_messages():
     except Exception as e:
         rabbitmq_logger.error(f"An error occurred: {e}")
     finally:
+        worker_state.mark_not_ready()
         rabbitmq_logger.info("Shutting down gracefully...")

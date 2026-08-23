@@ -6,6 +6,13 @@ scrape_configs:
     static_configs:
       - targets: ["fastapiapp:8000"]
 
+  # main2.py's RabbitMQ consumer worker runs in the same container as the API
+  # (see Dockerfile), just a different port. Only reachable once the "app"
+  # service is enabled in docker-compose.yml (currently commented out).
+  - job_name: "worker"
+    static_configs:
+      - targets: ["fastapiapp:8001"]
+
   - job_name: "rabbitmq"
     static_configs:
       - targets: ["rabbitmq:15692"]

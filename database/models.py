@@ -79,6 +79,75 @@ class APNSDeviceRegistrationPayload(BaseModel):
         return token
 
 
+class NotificationPreferencePayload(BaseModel):
+    deviceId: str
+    platform: Literal["android", "ios"] = "android"
+    rollNumber: str | None = None
+    degrees: list[str] = []
+    regulations: list[str] = []
+
+    @field_validator("deviceId")
+    @classmethod
+    def validate_device_id(cls, value: str) -> str:
+        from uuid import UUID
+
+        return str(UUID(value))
+
+    @field_validator("rollNumber")
+    @classmethod
+    def validate_roll_number(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        roll_number = value.strip().upper()
+        if len(roll_number) != 10 or not roll_number.isalnum():
+            raise ValueError("Roll number must be 10 alphanumeric characters")
+        return roll_number
+
+    @field_validator("degrees")
+    @classmethod
+    def validate_degrees(cls, value: list[str]) -> list[str]:
+        from subscriptions.topics import DEGREES
+
+        if len(value) > 6:
+            raise ValueError("Too many degrees selected")
+        normalized = sorted({degree.strip().lower() for degree in value if degree.strip()})
+        for degree in normalized:
+            if degree not in DEGREES:
+                raise ValueError(f"Unrecognized degree: {degree!r}")
+        return normalized
+
+    @field_validator("regulations")
+    @classmethod
+    def validate_regulations(cls, value: list[str]) -> list[str]:
+        import re
+
+        if len(value) > 5:
+            raise ValueError("Too many regulations selected")
+        normalized = sorted(
+            {regulation.strip().upper() for regulation in value if regulation.strip()}
+        )
+        pattern = re.compile(r"^R\d{2}$")
+        for regulation in normalized:
+            if not pattern.match(regulation):
+                raise ValueError(f"Unrecognized regulation: {regulation!r}")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_topic_count(self):
+        from subscriptions.topics import topics_for_preference
+
+        # Also enforces the 30-topic cap as a defense-in-depth check; the
+        # length caps on degrees/regulations above already bound this to
+        # at most 6 x 5 = 30, so this should never actually raise, but it
+        # keeps the payload validator and the topic-derivation logic from
+        # silently drifting apart if either cap changes independently.
+        topics_for_preference(
+            [degree.lower() for degree in self.degrees],
+            [regulation.lower() for regulation in self.regulations],
+        )
+        return self
+
+
 class GraceMarkEntry(BaseModel):
     subjectCode: str
     semesterCode: str

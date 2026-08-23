@@ -180,6 +180,21 @@ When a student scrape inserts new marks, the worker sends a legacy per-user Web 
 
 The public notification reads use PostgreSQL with five-minute Redis caches: a filter-specific key for the paginated feed and `latest_notifications` for the last seven days.
 
+### Android degree/regulation topic routing
+
+Android release broadcasts use FCM topics parameterized by degree and regulation instead of a single global topic, defined in `subscriptions/topics.py`:
+
+| Topic pattern | Meaning |
+|---|---|
+| `result-updates` (`FCM_RESULTS_TOPIC`) | global — every release; legacy app installs stay on this topic and keep receiving everything |
+| `result-updates-<degree>` | all regulations of one degree (`btech`, `bpharmacy`, `mtech`, `mpharmacy`, `mba`, `mca`) |
+| `result-updates-<regulation>` | one regulation across all degrees (e.g. `result-updates-r18`) |
+| `result-updates-<degree>-<regulation>` | one degree + one regulation |
+
+Each broadcast is sent as an FCM `condition` message OR-ing the release's global, degree, and regulation topics together, so a device matches at most one message per release regardless of how many of those topics it's subscribed to. A release naming enough regulations to exceed FCM's 5-topics-per-condition cap is split into multiple `condition` messages via `partition_into_conditions`; the global and degree-only topics are pinned to the first message so a default "all" subscriber never receives duplicates. `examcodes.regulation` is normalized (case, whitespace, multi-value splitting) only at broadcast time in `subscriptions/topics.py` — it is never rewritten in storage, since it is an exact-match lookup key elsewhere (see "Scraping and grading invariants" in CLAUDE.md). `FCM_SCOPED_TOPICS_ENABLED` is a kill switch that reverts broadcasting to the single global topic.
+
+The Android client subscribes/unsubscribes to these topics directly via the Firebase SDK based on a saved preference; the backend does not push per-device here. `NotificationPreference` (Prisma model, `notification_preferences` table) optionally persists a device's chosen `degrees`/`regulations` so the app can restore it across restarts, via the hidden `/api/notification-preferences` GET/PUT/DELETE routes in `api/routes.py`. This table is advisory only — delivery does not depend on it, since the client owns its own Firebase topic subscriptions.
+
 ## Grace-marks and CMM flows
 
 Grace-marks eligibility requires a B.Tech/B.Pharm roll number, stored 4-2 marks, and at least one remaining backlog. Proof upload repeats that check, limits the upload to PDF/PNG/JPEG and 5 MB, and sends the candidate plus a known reference document to Gemini. Only a confirmed CMM is uploaded to S3 and recorded as a pending `GraceMarksProof` row.
@@ -203,7 +218,7 @@ The public `/api/getCMM` route is separate: it renders a clearly watermarked sam
 
 ## Observability
 
-FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional instrumentation. `prometheus.yml` also scrapes RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Application and component loggers write to local files/standard output and push to Loki, and Grafana consumes the monitoring stack.
+FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional instrumentation. The `main2.py` worker exposes its own `/metrics` + `/health` on `WORKER_HEALTH_PORT` (`worker/health.py`). `prometheus.yml` scrapes the API, worker, RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Application and component loggers emit structured JSON (rotated 20MB x5), tagged with a per-request `request_id` (`utils/requestContext.py`, set by `main.py`'s middleware) and a best-effort `platform` classification (`android`/`ios`/`web`/`other`, `utils/platform.py`), scrubbed of roll-number-shaped tokens and denylisted keys (`utils/scrub.py`) before reaching any sink. Logs write to local files/stdout and push to Loki; Grafana consumes the monitoring stack. Health is split into `/api/health/live` (liveness, unguarded), `/api/health/ready` (per-dependency DB/Redis/RabbitMQ breakdown, guarded), and `/api/health` (public overall-status alias). There is no separate error-tracking service (no Sentry/GlitchTip) — a global exception handler logs unhandled errors at `ERROR` level with the request's `request_id`, and Grafana/Loki queries on that level are the error-tracking mechanism. `opentelemetry-*` packages were removed from `requirements.txt` (installed but never wired up) rather than adopted, since this is a two-process monolith, not a service mesh.
 
 ## Deployment topology
 

@@ -15,7 +15,9 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 
+from config.connection import prismaConnection
 from config.rateLimiter import limiter
+from config.redisConnection import redisConnection
 from config.settings import IS_PRODUCTION
 from chatbot.errors import (
     ChatbotNotConfiguredError,
@@ -27,6 +29,7 @@ from chatbot.schemas import ChatRequest, ChatResponse
 from database.models import (
     APNSDeviceRegistrationPayload,
     GraceMarksPayload,
+    NotificationPreferencePayload,
     ProofStatusUpdate,
     PushSub,
     ResultDeviceSubscriptionPayload,
@@ -47,8 +50,11 @@ from service.notificationService import (
 )
 from service.jobsService import fetch_jobs
 from service.subscriptionService import (
+    delete_notification_preferences,
     delete_result_subscriptions,
+    get_notification_preferences,
     register_apns_device,
+    save_notification_preferences,
     save_result_subscription,
     save_subscription,
     unregister_apns_device,
@@ -56,6 +62,7 @@ from service.subscriptionService import (
 from service import grace_marks_service
 from utils.auth import require_admin_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
+from utils.logger import logger
 
 
 router = APIRouter()
@@ -524,6 +531,40 @@ def create_routes(app: FastAPI):
     ):
         return await unregister_apns_device(str(device_id))
 
+    @router.put(
+        "/api/notification-preferences",
+        status_code=status.HTTP_201_CREATED,
+        summary="Save a device's degree/regulation result-notification filter",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def save_notification_preferences_endpoint(
+        data: NotificationPreferencePayload,
+    ):
+        return await save_notification_preferences(data)
+
+    @router.get(
+        "/api/notification-preferences",
+        summary="Get a device's saved result-notification filter",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def get_notification_preferences_endpoint(
+        device_id: UUID = Query(alias="deviceId"),
+    ):
+        return await get_notification_preferences(str(device_id))
+
+    @router.delete(
+        "/api/notification-preferences",
+        summary="Reset a device's result-notification filter to the default (all)",
+        tags=["Notifications"],
+        include_in_schema=False,
+    )
+    async def delete_notification_preferences_endpoint(
+        device_id: UUID = Query(alias="deviceId"),
+    ):
+        return await delete_notification_preferences(str(device_id))
+
     @router.get(
         "/api/jobs",
         operation_id="get_jobs",
@@ -562,13 +603,72 @@ def create_routes(app: FastAPI):
             remote=remote,
         )
 
-    @router.get("/api/health")
-    async def get_health():
+    async def _readiness_status() -> dict:
+        """Probe each dependency the API needs. Never raises — a probe
+        failure is reported as that dependency's status, not a 500."""
+        checks: dict[str, str] = {}
+
+        try:
+            await prismaConnection.prisma.query_raw("SELECT 1")
+            checks["database"] = "ok"
+        except Exception as exc:  # noqa: BLE001 - liveness probe, not a bug
+            logger.error("Readiness check: database probe failed", exc_info=exc)
+            checks["database"] = "error"
+
+        try:
+            if redisConnection.client and redisConnection.client.ping():
+                checks["redis"] = "ok"
+            else:
+                checks["redis"] = "error"
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Readiness check: redis probe failed", exc_info=exc)
+            checks["redis"] = "error"
+
+        rabbitmq_connection = getattr(app.state, "rabbitmq_connection", None)
+        checks["rabbitmq"] = (
+            "ok"
+            if rabbitmq_connection is not None and not rabbitmq_connection.is_closed
+            else "error"
+        )
+
+        return checks
+
+    @router.get("/api/health/live", include_in_schema=False)
+    async def get_health_live():
+        """Liveness only: the process is up and answering HTTP. Exempt from
+        the X-Api-Key guard (see config/apiHeaderGuard.py) so the container
+        HEALTHCHECK doesn't need a secret."""
         return JSONResponse(
             status_code=status.HTTP_200_OK,
+            content={"status": "success"},
+        )
+
+    @router.get("/api/health/ready", include_in_schema=False)
+    async def get_health_ready():
+        """Readiness with a per-dependency breakdown. Kept behind X-Api-Key
+        (not exempt) since it discloses internal infra status."""
+        checks = await _readiness_status()
+        healthy = all(value == "ok" for value in checks.values())
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
-                "status": "success",
-                "message": "The health is good.",
+                "status": "success" if healthy else "error",
+                "checks": checks,
+            },
+        )
+
+    @router.get("/api/health")
+    async def get_health():
+        """Public alias kept for existing external uptime monitors. Reports
+        only an overall status (no dependency breakdown, unlike /api/health/ready)
+        since this path stays exempt from the X-Api-Key guard."""
+        checks = await _readiness_status()
+        healthy = all(value == "ok" for value in checks.values())
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "success" if healthy else "error",
+                "message": "The health is good." if healthy else "One or more dependencies are unavailable.",
             },
         )
 

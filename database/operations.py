@@ -10,6 +10,7 @@ from config.connection import prismaConnection
 from config.settings import RESULTS
 from database.models import (
     APNSDeviceRegistrationPayload,
+    NotificationPreferencePayload,
     PushSub,
     ResultDeviceSubscriptionPayload,
 )
@@ -460,6 +461,39 @@ async def delete_apns_devices(ids: list[str]):
 
 async def delete_apns_device_for_device(device_id: str):
     return await prismaConnection.prisma.pushdevice.delete_many(
+        where={"deviceId": device_id}
+    )
+
+
+async def save_notification_preference(data: NotificationPreferencePayload):
+    return await prismaConnection.prisma.notificationpreference.upsert(
+        where={"deviceId": data.deviceId},
+        data={
+            "update": {
+                "platform": data.platform,
+                "rollNumber": data.rollNumber,
+                "degrees": data.degrees,
+                "regulations": data.regulations,
+            },
+            "create": {
+                "deviceId": data.deviceId,
+                "platform": data.platform,
+                "rollNumber": data.rollNumber,
+                "degrees": data.degrees,
+                "regulations": data.regulations,
+            },
+        },
+    )
+
+
+async def get_notification_preference(device_id: str):
+    return await prismaConnection.prisma.notificationpreference.find_unique(
+        where={"deviceId": device_id}
+    )
+
+
+async def delete_notification_preference_for_device(device_id: str):
+    return await prismaConnection.prisma.notificationpreference.delete_many(
         where={"deviceId": device_id}
     )
 

@@ -75,6 +75,10 @@ CHATBOT_MODEL = os.getenv("CHATBOT_MODEL") or None
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID") or None
 FCM_RESULTS_TOPIC = os.getenv("FCM_RESULTS_TOPIC", "result-updates")
+# Kill switch for degree/regulation-scoped FCM topic routing. When false,
+# every broadcast falls back to the single FCM_RESULTS_TOPIC exactly like
+# before scoped topics existed, with no code rollback required.
+FCM_SCOPED_TOPICS_ENABLED = os.getenv("FCM_SCOPED_TOPICS_ENABLED", "true").lower() == "true"
 # Optional native Apple Push Notification service configuration. The private
 # key may be supplied directly by the host's secret manager or by file path.
 APNS_KEY_ID = os.getenv("APNS_KEY_ID") or None
@@ -115,6 +119,10 @@ CHATBOT_MAX_TOOL_CALLS = _bounded_int_env("CHATBOT_MAX_TOOL_CALLS", 6, 1, 10)
 CHATBOT_MAX_OUTPUT_TOKENS = _bounded_int_env(
     "CHATBOT_MAX_OUTPUT_TOKENS", 800, 100, 2000
 )
+# Port the main2.py worker's /metrics + /health surface listens on (see
+# worker/health.py). Not read via utils.logger's LOKI_ENDPOINT pattern
+# because there's no circular-import concern here.
+WORKER_HEALTH_PORT = _bounded_int_env("WORKER_HEALTH_PORT", 8001, 1024, 65535)
 # Set ENVIRONMENT=production to disable the interactive docs (/docs, /redoc,
 # /openapi.json). Anything else (or unset) keeps them enabled.
 IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"

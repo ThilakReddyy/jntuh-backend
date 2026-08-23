@@ -67,7 +67,7 @@ Important optional groups:
 - S3-compatible development storage: `S3_ENDPOINT_URL`, `S3_PUBLIC_URL_BASE`
 - CMM verification: `GEMINI_API_KEY`, `GEMINI_MODEL`, `CMM_REFERENCE_PATH`
 - Chatbot: `CHATBOT_API_KEY`, `CHATBOT_BASE_URL`, `CHATBOT_MODEL`, and bounded timeout/tool/output settings
-- Android push: `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_PROJECT_ID`, `FCM_RESULTS_TOPIC`
+- Android push: `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_PROJECT_ID`, `FCM_RESULTS_TOPIC`, `FCM_SCOPED_TOPICS_ENABLED`
 - iOS push: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY` or `APNS_PRIVATE_KEY_PATH`
 - Class work: `CLASS_RESULTS_QUEUE_NAME`
 - Job sources: `JOB_ATS_BOARDS_JSON`
@@ -101,6 +101,7 @@ When adding a result cache, update invalidation deliberately or document why TTL
 - Consolidated views choose the best attempt in `database/models.py`.
 - GPA calculation must use `utils.helpers.isbpharmacyr22()` everywhere the B.Pharm R22 table matters.
 - Use `utils.helpers.validateRollNo` for public roll-number inputs instead of reimplementing validation.
+- `examcodes.regulation` is an exact-match lookup key for `get_exam_codes(degree, regulation)` (`database/operations.py`) and the public `/api/notifications` filter. Never normalize or rewrite it in storage; regulation normalization for FCM topic routing happens only at broadcast time in `subscriptions/topics.py`.
 
 ## Queue behavior
 
@@ -123,11 +124,19 @@ Class cohort pairing follows JNTUH admission-year/type rules implemented in both
 
 Provider failures should not roll back already-persisted results or notification metadata.
 
+### Android FCM topic-naming contract
+
+- Topic names are `<FCM_RESULTS_TOPIC>[-<degree>][-<regulation>]`, always lowercase, produced only by `subscriptions/topics.py` — do not build topic strings anywhere else.
+- `<degree>` must be one of `btech`, `bpharmacy`, `mtech`, `mpharmacy`, `mba`, `mca`. `<regulation>` must match `^R\d{2}$` after normalization (case/whitespace/multi-value splitting); anything that doesn't match falls back to the global/degree-only topics for that release, not an error.
+- An FCM `condition` message supports at most 5 topics; `partition_into_conditions` chunks beyond that, pinning the global and degree-only topics to the first chunk so a default "all" subscriber is never notified twice for one release.
+- `FCM_SCOPED_TOPICS_ENABLED=false` is the kill switch back to single-global-topic broadcasting.
+- Keep `subscriptions/topics.py`'s `DEGREES` set in sync with `scrapers/resultNotificationScraper.py::categorize_degree()` if degree categories change.
+
 ## API, MCP, and security
 
 - `ApiKeyHeaderMiddleware` protects most HTTP routes with `X-Api-Key`. When `API_ACCESS_KEY` is unset, any non-empty value passes.
 - Exact/prefix mobile User-Agents bypass the header guard. Treat this as a compatibility filter, not strong authentication.
-- `/mcp`, `/metrics`, docs, `/`, `/connect`, and preflight requests are exempt. `/api/health` is not exempt.
+- `/mcp`, `/metrics`, docs, `/`, `/connect`, `/api/health`, `/api/health/live`, and preflight requests are exempt. `/api/health/ready` is NOT exempt (it discloses per-dependency status).
 - Default rate limit is 30/minute by originating IP with Redis storage and an in-memory fail-open fallback. `/mcp` is exempt; sensitive routes define tighter limits.
 - MCP exposes only the GET operations in `config/mcp.py`. Keep mutation/admin operations out of the allowlist.
 - The chatbot may call only that same read-only MCP tool set.
@@ -146,10 +155,12 @@ See `SECURITY.md` before changing authentication, admin routes, uploads, secrets
 
 ## Observability
 
-- FastAPI metrics: `/metrics`.
-- Prometheus also scrapes RabbitMQ and Redis/PostgreSQL exporters.
-- Component logs go to files/stdout and Loki through `utils/logger.py`.
-- The Loki endpoint is currently hard-coded, so account for host-versus-container networking before changing deployment topology.
+- FastAPI metrics: `/metrics`. The `main2.py` worker exposes its own metrics/health on `WORKER_HEALTH_PORT` (default 8001, see `worker/health.py`) — only reachable once the `app` Compose service is enabled (see Deployment caveat below).
+- Prometheus also scrapes RabbitMQ, Redis/PostgreSQL exporters, and the worker (`prometheus.yml`).
+- Logs are structured JSON (`utils/logger.py`), written to rotating files (20MB x5), stdout, and Loki. Every record carries `request_id` (correlates one request across log lines — set by `main.py`'s `log_request` middleware, propagated via `utils/requestContext.py`) and `platform` (`android`/`ios`/`web`/`other`, from `utils/platform.py`'s User-Agent/Origin heuristic — the same signal `config/apiHeaderGuard.py` uses for its auth bypass). `utils/scrub.py` redacts roll-number-shaped tokens and denylisted keys before anything reaches a log sink.
+- `LOKI_ENDPOINT` is env-driven (`.env.example`) — must resolve inside the Docker network (service name `loki`, not `localhost`).
+- Health: `/api/health/live` (liveness only, exempt from `X-Api-Key`), `/api/health/ready` (full DB/Redis/RabbitMQ breakdown, guarded), `/api/health` (public alias, overall status only — no dependency breakdown). All three are defined in `api/routes.py`.
+- Unhandled exceptions are caught by a global handler in `main.py` (`request_id`-tagged, never leaks a traceback to the client) — this plus a Loki/Grafana query on `level="ERROR"` is the error-tracking mechanism; there is no separate error-tracking SaaS/self-hosted service.
 
 ## Deployment caveat
 
