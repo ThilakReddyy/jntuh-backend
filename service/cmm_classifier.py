@@ -35,9 +35,7 @@ class CMMResult(BaseModel):
         le=1.0,
         description="Confidence in the classification from 0.0 to 1.0.",
     )
-    document_type: str = Field(
-        description="Short name for the detected document type."
-    )
+    document_type: str = Field(description="Short name for the detected document type.")
     evidence: list[str] = Field(
         description="Visible features supporting the classification, without personal data."
     )
@@ -62,6 +60,12 @@ Do not require an exact visual match or the same university. A single-semester m
 certificate, provisional certificate, transcript request, hall ticket, ID card, unrelated document,
 or blank/illegible document is not a confirmed CMM. If the candidate is too cropped, blurry, or
 ambiguous to verify the defining features, return "uncertain" rather than guessing.
+
+IMPORTANT:
+If the candidate says or clearly indicates "sample document", "sample", "not valid
+for verification", "not valid for official use", "not for verification", or equivalent wording
+showing that it is not an official/valid document, classify it as "not_cmm" even if it otherwise
+looks like a CMM.
 
 Set is_cmm=true only when classification="cmm". Do not include names, roll numbers, serial numbers,
 barcodes, or other personal data in evidence. Keep evidence factual and concise.
@@ -93,7 +97,9 @@ def _classify_cmm_sync(
 
     reference_data = reference.read_bytes()
     if len(candidate_data) + len(reference_data) > MAX_INLINE_BYTES:
-        raise ValueError("Candidate and reference documents exceed Gemini's inline limit.")
+        raise ValueError(
+            "Candidate and reference documents exceed Gemini's inline limit."
+        )
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     response = client.models.generate_content(
