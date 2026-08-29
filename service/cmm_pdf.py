@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping
 
+from reportlab.graphics.barcode import code128
 from reportlab.lib.colors import HexColor, white
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
@@ -15,6 +16,9 @@ PAPER = HexColor("#EDF3E7")
 PATTERN = HexColor("#C9D7C6")
 LINE = HexColor("#2A342F")
 GOLD = HexColor("#C79222")
+# Code 128 requires a quiet zone of at least 10 modules on each side.
+QUIET_MODULES = 10
+BARCODE_CHARSET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 GRADE_POINTS = {
     "O": 10,
     "A+": 9,
@@ -88,7 +92,8 @@ def seal(c, cx, cy, radius, label):
     c.drawCentredString(cx, cy - 7, "SAMPLE")
 
 
-def barcode(c, x, y, width, height, seed=0):
+def decorative_bars(c, x, y, width, height, seed=0):
+    """Fill the area with meaningless bars when there is nothing to encode."""
     c.setFillColor(INK)
     cursor = x
     index = 0
@@ -97,6 +102,47 @@ def barcode(c, x, y, width, height, seed=0):
         c.rect(cursor, y, bar, height, fill=1, stroke=0)
         cursor += bar + (0.65 if index % 2 else 1.25)
         index += 1
+
+
+def barcode(c, x, y, width, height, seed=0, value=None):
+    """Draw a scannable Code 128 symbol for `value`, scaled to span `width`.
+
+    The symbol is measured at a unit module width, then rebuilt with the module
+    width that makes it exactly `width` points wide, quiet zones included.
+    """
+    text = "".join(ch for ch in str(value or "").upper() if ch in BARCODE_CHARSET)
+    if not text:
+        decorative_bars(c, x, y, width, height, seed)
+        return
+
+    probe = code128.Code128(
+        text,
+        barWidth=1,
+        barHeight=height,
+        humanReadable=False,
+        quiet=True,
+        lquiet=QUIET_MODULES,
+        rquiet=QUIET_MODULES,
+    )
+    if probe.width <= 0:
+        decorative_bars(c, x, y, width, height, seed)
+        return
+
+    module = width / probe.width
+    symbol = code128.Code128(
+        text,
+        barWidth=module,
+        barHeight=height,
+        humanReadable=False,
+        quiet=True,
+        lquiet=QUIET_MODULES * module,
+        rquiet=QUIET_MODULES * module,
+    )
+    # Blank the page pattern behind the symbol so the quiet zones stay clean.
+    c.setFillColor(PAPER)
+    c.rect(x - 2, y - 2, width + 4, height + 4, fill=1, stroke=0)
+    c.setFillColor(INK)
+    symbol.drawOn(c, x, y)
 
 
 def header(c, details, results):
@@ -127,8 +173,9 @@ def header(c, details, results):
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 7.2)
     c.drawCentredString(311, 779, "CONSOLIDATED MEMO OF MARKS / GRADES AND CREDITS")
-    barcode(c, 82, 756, 92, 18, 3)
-    fit(c, "CMM-SAMPLE", 82, 746, 92, 7, True, "center")
+    roll_number = str(details.get("rollNumber", "") or "")
+    barcode(c, 82, 756, 98, 18, 3, roll_number)
+    fit(c, roll_number or "CMM-SAMPLE", 82, 746, 98, 7, True, "center")
     fit(c, "B.Tech.", 185, 755, 44, 8, True)
     fit(c, details.get("branch", ""), 232, 755, 310, 8.5, True)
 
@@ -229,7 +276,7 @@ def academic_table(c, results):
         semester_rows(c, semesters.get(right_sem), right_bounds, data_top, bottom)
 
 
-def footer(c, results):
+def footer(c, details, results):
     credits_label = "Number of Credits registered and secured are:"
     cgpa_label = "Aggregate Marks / CGPA Secured:"
     c.setFillColor(INK)
@@ -245,7 +292,8 @@ def footer(c, results):
     c.drawString(cgpa_x, 95, str(results.get("CGPA", "—")))
     fit(c, "Date of Issue", 38, 77, 72, 7)
     fit(c, "—", 112, 77, 150, 8)
-    barcode(c, 267, 70, 92, 23, 11)
+    # Kept clear of the gold seal dot at (313, 95); overprint would break the scan.
+    barcode(c, 267, 62, 140, 22, 11, details.get("rollNumber"))
     c.setFillColor(GOLD)
     c.circle(313, 95, 8, fill=1, stroke=0)
     fit(c, "CONTROLLER OF EXAMINATIONS", 418, 76, 164, 7.2, True, "center")
@@ -281,7 +329,7 @@ def generate_cmm_pdf(
     border(c)
     header(c, details, results)
     academic_table(c, results)
-    footer(c, results)
+    footer(c, details, results)
     c.showPage()
     c.save()
     pdf_bytes = buffer.getvalue()

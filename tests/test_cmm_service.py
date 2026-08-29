@@ -1,8 +1,11 @@
 import asyncio
+import copy
 import json
 import os
 import sys
 from pathlib import Path
+
+import pytest
 
 from fastapi import status
 from fastapi.responses import JSONResponse
@@ -27,6 +30,7 @@ for name, value in {
 }.items():
     os.environ.setdefault(name, value)
 
+from service import cmm_pdf  # noqa: E402
 from service import getCMMService  # noqa: E402
 from service.cmm_pdf import generate_cmm_pdf  # noqa: E402
 
@@ -96,3 +100,72 @@ def test_fetch_cmm_preserves_pending_lookup_response(monkeypatch):
 
     assert response is pending
     assert json.loads(response.body)["message"] == "Your roll number has been queued."
+
+
+class RecordingCanvas:
+    """Minimal canvas that records the filled rectangles a barcode draws."""
+
+    def __init__(self):
+        self.rects = []
+        self._origin = (0.0, 0.0)
+
+    def saveState(self):
+        pass
+
+    def restoreState(self):
+        self._origin = (0.0, 0.0)
+
+    def translate(self, x, y):
+        self._origin = (x, y)
+
+    def setFillColor(self, _color):
+        pass
+
+    def rect(self, x, y, w, h, stroke=0, fill=1):
+        self.rects.append((self._origin[0] + x, self._origin[1] + y, w, h))
+
+
+def draw_barcode(value, x=80.0, y=700.0, width=140.0, height=20.0):
+    """Return only the bar rectangles, dropping the background wash."""
+    canvas = RecordingCanvas()
+    cmm_pdf.barcode(canvas, x, y, width, height, 3, value)
+    return [r for r in canvas.rects if r[3] == height]
+
+
+def test_barcode_encodes_the_roll_number_and_fills_the_requested_width():
+    width, x = 140.0, 80.0
+    bars = draw_barcode("22XX1A0501", x=x, width=width)
+
+    assert bars, "expected Code 128 bars to be drawn"
+
+    quiet = width / (
+        cmm_pdf.code128.Code128(
+            "22XX1A0501", barWidth=1, humanReadable=False, quiet=True,
+            lquiet=cmm_pdf.QUIET_MODULES, rquiet=cmm_pdf.QUIET_MODULES,
+        ).width
+    ) * cmm_pdf.QUIET_MODULES
+
+    # Symbol sits inside the slot, with a full quiet zone on each side.
+    assert bars[0][0] == pytest.approx(x + quiet, abs=0.01)
+    last = bars[-1]
+    assert last[0] + last[2] == pytest.approx(x + width - quiet, abs=0.01)
+
+
+def test_barcode_pattern_depends_on_the_roll_number():
+    assert draw_barcode("22XX1A0501") != draw_barcode("22XX1A0502")
+    assert draw_barcode("22XX1A0501") == draw_barcode("22XX1A0501")
+
+
+def test_barcode_falls_back_to_decorative_bars_without_a_value():
+    for empty in (None, "", "----"):
+        assert draw_barcode(empty), f"expected fallback bars for {empty!r}"
+
+    assert draw_barcode("") == draw_barcode(None)
+    assert draw_barcode("") != draw_barcode("22XX1A0501")
+
+
+def test_generated_pdf_varies_with_the_roll_number():
+    other = copy.deepcopy(PAYLOAD)
+    other["details"]["rollNumber"] = "22XX1A0502"
+
+    assert generate_cmm_pdf(PAYLOAD) != generate_cmm_pdf(other)
