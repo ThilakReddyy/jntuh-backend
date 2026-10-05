@@ -60,7 +60,7 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
 
     # --- Step 3: Determine roll_number2 ---
     def calculate_alt_roll_number(roll_number: str) -> str:
-        if roll_number[4] != "5" and roll_number[5] == "A":
+        if roll_number[4] != "5":
             first_two = str(int(roll_number[0:2]) + 1).zfill(2)
             return first_two + roll_number[2:4] + "5" + roll_number[5:8]
         else:
