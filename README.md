@@ -93,6 +93,15 @@ See [architecture.md](architecture.md) for the architecture diagrams, detailed r
 
 ## Documentation
 
+All Academic Results supports a combined PDF download through
+`GET /api/getAllResultPDF?rollNumber=<hall-ticket-number>`. Each exam code,
+including RCRV and Grace variants, starts on a separate marks-memo page.
+Long exams continue onto additional pages with repeated headers. The PDF preserves
+the raw attempt marks and grades; it does not calculate a consolidated SGPA.
+The response is an `All-Results-<hall-ticket-number>.pdf` attachment, or the
+existing queued/error JSON response when results are unavailable. Empty histories
+return 404. The web app's `/academicallresult/result` download button uses this endpoint.
+
 | Guide | Purpose |
 | --- | --- |
 | [Architecture](architecture.md) | Components, result lifecycle, data model, queues, security boundaries, and deployment topology. |

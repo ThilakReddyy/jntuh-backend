@@ -32,6 +32,7 @@ from database.models import (
     ResultDeviceSubscriptionPayload,
 )
 from service.getAllResultService import fetch_all_results
+from service.getAllResultPDFService import fetch_all_results_pdf
 from service.getBacklogsService import fetch_backlogs
 from service.getClassResults import fetch_class_results
 from service.getCMMService import fetch_cmm
@@ -101,6 +102,27 @@ def create_routes(app: FastAPI):
         roll_no: str = Depends(validateRollNo),
     ):
         return await fetch_all_results(app, roll_no)
+
+    @router.get(
+        "/api/getAllResultPDF",
+        operation_id="get_all_result_pdf",
+        summary="Download all exam attempts in a single PDF",
+        description=(
+            "Builds marks memos from the complete attempt history. Each exam code "
+            "starts on a new page, including separate RCRV and Grace attempts. "
+            "Long exams continue onto additional pages without dropping subjects. "
+            "Returns a sample PDF attachment, or the usual queued/error JSON "
+            "response when results are unavailable."
+        ),
+        tags=["Results"],
+        responses={
+            200: {"description": "Exam-wise marks memo PDF", "content": {"application/pdf": {}}},
+            202: {"description": "Result scrape queued"},
+            404: {"description": "No exam results available"},
+        },
+    )
+    async def get_all_result_pdf(roll_no: str = Depends(validateRollNo)):
+        return await fetch_all_results_pdf(app, roll_no)
 
     @router.get(
         "/api/getAcademicResult",
