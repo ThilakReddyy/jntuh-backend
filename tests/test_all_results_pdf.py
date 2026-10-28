@@ -2,6 +2,7 @@ import asyncio
 import copy
 from io import BytesIO
 import os
+import re
 from pathlib import Path
 import sys
 
@@ -104,8 +105,40 @@ def test_absent_unknown_and_zero_credit_pass_are_not_miscounted():
 def test_pharmacy_grade_points_use_existing_regulation_scale():
     payload = copy.deepcopy(PAYLOAD)
     payload["details"]["rollNumber"] = "23XX1R0001"
-    assert "A = 9" in pages(payload)[0]
-    assert "A = 8" in pages(PAYLOAD)[0]
+    assert re.search(r"\bA\s+9\s+4\b", pages(payload)[0])
+    assert re.search(r"\bA\s+8\s+4\b", pages(PAYLOAD)[0])
+
+
+@pytest.mark.parametrize("missing", [None, "", "-", 0, "0", "0.00"])
+def test_exam_without_marks_omits_mark_columns_only_for_that_exam(missing):
+    payload = copy.deepcopy(PAYLOAD)
+    for row in payload["results"][0]["exams"][0]["subjects"]:
+        for key in ("internalMarks", "externalMarks", "totalMarks"):
+            row[key] = missing
+    result = pages(payload)
+    for heading in ("INT.", "EXT.", "TOTAL"):
+        assert heading not in result[0]
+        assert heading in result[1]
+    assert "GRADE" in result[0]
+    assert "CREDITS" in result[0]
+    assert "GRADE POINTS:" not in result[0]
+
+
+@pytest.mark.parametrize("key, heading", [("internalMarks", "INT."), ("externalMarks", "EXT."), ("totalMarks", "TOTAL")])
+def test_mark_column_is_kept_when_any_subject_has_a_value(key, heading):
+    payload = copy.deepcopy(PAYLOAD)
+    rows = payload["results"][0]["exams"][0]["subjects"]
+    for row in rows:
+        for field in ("internalMarks", "externalMarks", "totalMarks"):
+            row.pop(field)
+    rows[0][key] = 0
+    rows[1][key] = 25
+    page = pages(payload)[0]
+    assert heading in page
+    for other in {"INT.", "EXT.", "TOTAL"} - {heading}:
+        assert other not in page
+    # A real zero remains visible in a column retained for the whole exam.
+    assert re.search(r"Mathematics\s+0\s+F", page)
 
 
 @pytest.mark.parametrize("as_response", [False, True])

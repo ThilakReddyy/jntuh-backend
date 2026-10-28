@@ -2,6 +2,7 @@
 
 from functools import partial
 from io import BytesIO
+from math import cos, isfinite, pi, sin
 from pathlib import Path
 from typing import Any, Mapping
 from xml.sax.saxutils import escape
@@ -13,14 +14,14 @@ from reportlab.platypus import (
     PageBreak, PageTemplate, Paragraph, TableStyle,
 )
 
-from service.cmm_pdf import PAGE_H, PAGE_W, barcode, border, fit
+from service.cmm_pdf import PAGE_H, PAGE_W, barcode, fit
 from utils.helpers import gradestogpa, gradestogpabppharamcyr22, isbpharmacyr22
 
 
 INK = HexColor("#302D3A")
 RULE = HexColor("#83798A")
-PAPER = HexColor("#FAF8FC")
-BAND = HexColor("#EAE5EE")
+PAPER = HexColor("#FDFCFD")
+BAND = HexColor("#F2EFF4")
 WIDTH = PAGE_W - 80
 CELL = ParagraphStyle("memo-cell", fontName="Helvetica", fontSize=8, leading=11, textColor=INK)
 CENTER = ParagraphStyle("memo-center", parent=CELL, alignment=1)
@@ -39,17 +40,69 @@ def _grade_scale(details):
     return {grade.upper(): points for grade, points in scale.items() if points > 0}
 
 
-def _page(c, doc, *, details, semester, exam, scale):
-    c.saveState()
+def _memo_background(c):
+    """Fine radial linework and an interlaced border inspired by the sample memo."""
+    form = "all-results-memo-paper"
+    if c.hasForm(form):
+        c.doForm(form)
+        return
+    c.beginForm(form, 0, 0, PAGE_W, PAGE_H)
     c.setFillColor(PAPER)
     c.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
-    border(c)
-    c.setStrokeColor(HexColor("#E6E0EB"))
-    c.setLineWidth(0.3)
-    for y in range(35, int(PAGE_H - 30), 12):
-        c.ellipse(27, y - 15, PAGE_W - 27, y + 15, fill=0, stroke=1)
-    c.setFillColor(PAPER)
-    c.roundRect(30, 147, PAGE_W - 60, 664, 6, fill=1, stroke=0)
+    c.setStrokeColor(HexColor("#C8C1CE"))
+    c.setLineWidth(0.28)
+    # Two fans meet the top and bottom of the white marks panel, as in the
+    # reference. Keep the vector artwork reusable across all exam pages.
+    for center_y, bottom, height in [(624, PAGE_H / 2, PAGE_H / 2 - 22), (149, 22, PAGE_H / 2 - 22)]:
+        c.saveState()
+        clip = c.beginPath()
+        clip.rect(22, bottom, PAGE_W - 44, height)
+        c.clipPath(clip, stroke=0, fill=0)
+        for radius in range(4, 650, 4):
+            path = c.beginPath()
+            for step in range(361):
+                angle = step * pi / 180
+                wave = min(radius * 0.16, 8) * sin(16 * angle + radius / 35)
+                r = radius + wave
+                x, y = PAGE_W / 2 + r * cos(angle), center_y + r * sin(angle)
+                if step == 0:
+                    path.moveTo(x, y)
+                else:
+                    path.lineTo(x, y)
+            path.close()
+            c.drawPath(path)
+        c.restoreState()
+
+    c.setStrokeColor(HexColor("#807386"))
+    c.setLineWidth(0.35)
+    for phase in range(6):
+        offset = phase * pi / 3
+        for horizontal in (True, False):
+            length = PAGE_W if horizontal else PAGE_H
+            for edge in (14, (PAGE_H if horizontal else PAGE_W) - 14):
+                path = c.beginPath()
+                for step in range(10, int(length - 9)):
+                    wave = edge + 3.4 * sin(step * pi / 5 + offset)
+                    x, y = (step, wave) if horizontal else (wave, step)
+                    if step == 10:
+                        path.moveTo(x, y)
+                    else:
+                        path.lineTo(x, y)
+                c.drawPath(path)
+    for inset in (9, 20):
+        c.rect(inset, inset, PAGE_W - inset * 2, PAGE_H - inset * 2, fill=0, stroke=1)
+
+    c.setFillColor(white)
+    c.setStrokeColor(RULE)
+    c.setLineWidth(0.6)
+    c.roundRect(30, 147, PAGE_W - 60, 479, 6, fill=1, stroke=1)
+    c.endForm()
+    c.doForm(form)
+
+
+def _page(c, doc, *, details, semester, exam):
+    c.saveState()
+    _memo_background(c)
     fit(c, "JAWAHARLAL NEHRU TECHNOLOGICAL UNIVERSITY HYDERABAD", 44, 791, WIDTH - 8, 11, True, "center")
     fit(c, "HYDERABAD, TELANGANA - 500 085", 40, 774, WIDTH, 8, align="center")
     c.setFillColor(INK)
@@ -73,8 +126,6 @@ def _page(c, doc, *, details, semester, exam, scale):
     barcode(c, 42, 113, 142, 20, value=roll)
     fit(c, str(roll), 42, 102, 142, 7, align="center")
     fit(c, f"Page {doc.page}", 465, 118, 98, 8, align="right")
-    legend = "GRADE POINTS: " + "   ".join(f"{grade} = {points}" for grade, points in scale.items())
-    fit(c, legend + "   F / Ab = 0", 40, 83, WIDTH, 7, align="center")
     fit(c, "Attempt history only. Semester SGPA requires the consolidated result.", 40, 67, WIDTH, 7, align="center")
     fit(c, "jntuhconnect.dhethi.com", 190, 49, 232, 8, True, "center")
     c.linkURL("https://jntuhconnect.dhethi.com", (190, 45, 422, 59), relative=0)
@@ -82,9 +133,29 @@ def _page(c, doc, *, details, semester, exam, scale):
     c.restoreState()
 
 
+def _has_recorded_mark(value):
+    # The result model stores unavailable marks as zero. As on the results
+    # page, an entirely zero/empty column is treated as unavailable. Once a
+    # column is present, individual zero scores are still printed unchanged.
+    try:
+        number = float(value)
+        return isfinite(number) and number != 0
+    except (TypeError, ValueError):
+        return str(value).strip().upper() in {"AB", "ABS"}
+
+
 def _exam_flowables(exam, scale):
     subjects = exam.get("subjects", [])
-    headings = ["S.NO", "SUBJECT CODE", "SUBJECT TITLE", "INT.", "EXT.", "TOTAL", "GRADE", "GRADE POINT", "CREDITS"]
+    mark_columns = [
+        (key, title, width) for key, title, width in [
+            ("internalMarks", "INT.", 36),
+            ("externalMarks", "EXT.", 36),
+            ("totalMarks", "TOTAL", 37),
+        ] if any(_has_recorded_mark(subject.get(key)) for subject in subjects)
+    ]
+    headings = ["S.NO", "SUBJECT CODE", "SUBJECT TITLE"] + [title for _, title, _ in mark_columns] + ["GRADE", "GRADE POINT", "CREDITS"]
+    mark_widths = [width for _, _, width in mark_columns]
+    widths = [25, 54, 337 - sum(mark_widths)] + mark_widths + [35, 39, 42]
     rows = [[_paragraph(label, HEADING) for label in headings]]
     passed = 0
     credits = 0.0
@@ -95,18 +166,18 @@ def _exam_flowables(exam, scale):
         credits += float(subject.get("credits") or 0)
         values = [
             index, subject.get("subjectCode", "-"), subject.get("subjectName", "-"),
-            subject.get("internalMarks", "-"), subject.get("externalMarks", "-"),
-            subject.get("totalMarks", "-"), subject.get("grades", "-"), points,
+            *[subject.get(key, "-") for key, _, _ in mark_columns],
+            subject.get("grades", "-"), points,
             f"{float(subject.get('credits') or 0):g}",
         ]
         rows.append([_paragraph(value, CELL if column == 2 else CENTER) for column, value in enumerate(values)])
     if not subjects:
-        rows.append([_paragraph("-", CENTER), _paragraph("-", CENTER), _paragraph("No subjects recorded for this exam.")] + [""] * 6)
+        rows.append([_paragraph("-", CENTER), _paragraph("-", CENTER), _paragraph("No subjects recorded for this exam.")] + [""] * (len(headings) - 3))
     rows.append([_paragraph(
         f"Registered Subjects: {len(subjects)}    |    Passed: {passed}    |    Recorded Credits: {credits:g}", CENTER,
-    )] + [""] * 8)
+    )] + [""] * (len(headings) - 1))
 
-    table = LongTable(rows, colWidths=[25, 54, 228, 36, 36, 37, 35, 39, 42], repeatRows=1, hAlign="LEFT", splitInRow=1)
+    table = LongTable(rows, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), BAND),
         ("BACKGROUND", (0, 1), (-1, -1), white),
@@ -141,7 +212,7 @@ def generate_all_results_pdf(payload: Mapping[str, Any], output_path: str | Path
         doc.addPageTemplates(PageTemplate(
             id=template_id,
             frames=[Frame(40, 157, WIDTH, 460, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)],
-            onPage=partial(_page, details=details, semester=semester, exam=exam, scale=scale),
+            onPage=partial(_page, details=details, semester=semester, exam=exam),
         ))
         if index:
             story.extend([NextPageTemplate(template_id), PageBreak()])
