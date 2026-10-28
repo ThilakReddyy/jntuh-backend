@@ -24,6 +24,7 @@ for name, value in {
     os.environ.setdefault(name, value)
 
 from service import getAllResultPDFService  # noqa: E402
+from service import all_results_pdf  # noqa: E402
 from service.all_results_pdf import generate_all_results_pdf  # noqa: E402
 
 
@@ -53,6 +54,28 @@ PAYLOAD = {
 
 def pages(payload):
     return [page.extract_text() for page in PdfReader(BytesIO(generate_all_results_pdf(payload))).pages]
+
+
+@pytest.mark.parametrize("roll", ["22XX1A0501", "23XX1R0001"])
+def test_each_page_has_a_qr_and_clickable_link_to_the_students_all_results(monkeypatch, roll):
+    payload = copy.deepcopy(PAYLOAD)
+    payload["details"]["rollNumber"] = roll
+    encoded_urls = []
+    qr_code = all_results_pdf.QrCode
+
+    def record_qr(value, **kwargs):
+        encoded_urls.append(value)
+        return qr_code(value, **kwargs)
+
+    monkeypatch.setattr(all_results_pdf, "QrCode", record_qr)
+    reader = PdfReader(BytesIO(generate_all_results_pdf(payload)))
+    expected = f"https://jntuhconnect.dhethi.com/academicallresult/result?htno={roll}"
+    assert encoded_urls == [expected] * len(reader.pages)
+    for page in reader.pages:
+        links = [annotation.get_object() for annotation in page["/Annots"]]
+        qr_links = [link for link in links if link.get("/A", {}).get("/URI") == expected]
+        assert len(qr_links) == 1
+        assert list(qr_links[0]["/Rect"]) == [42, 80, 110, 148]
 
 
 def test_every_exam_and_variant_gets_its_own_page():
@@ -86,7 +109,7 @@ def test_long_exam_continues_without_losing_subjects_or_mixing_exams():
     assert "<Theory>" in text
     assert "Registered Subjects: 40" in text
     for page in first_exam_pages:
-        assert "SUBJECT TITLE" in page
+        assert page.count("SUBJECT TITLE") == 1
         assert "REVALUED101" not in page
     assert "EXAM CODE: 1001[RCRV]" in result[len(first_exam_pages)]
 
