@@ -5,10 +5,6 @@ on:
     branches:
       - main
 
-concurrency:
-  group: production-compose
-  cancel-in-progress: false
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,7 +27,6 @@ jobs:
           done
 
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            set -eu
 
             # Navigate to project directory (create if missing)
             mkdir -p ~/jntuh-backend && cd ~/jntuh-backend
@@ -40,12 +35,19 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Bootstrap a supported Compose plugin, then verify the whole stack.
-            bash scripts/deploy.sh
+            # Start or update Docker services
+            # docker-compose pull  # Fetch updated images without rebuilding everything
+            # docker-compose down
+            # # docker-compose up --no-deps -d --build app
+            # docker-compose up -d --build
+            docker-compose build app
+            docker-compose up -d --no-deps app
+
+            # Cleanup unused Docker resources
+            docker system prune -af  # Removes stopped containers, unused networks, images, and volumes
 
             exit
           EOF
 
       - name: Cleanup SSH Key
-        if: always()
         run: rm -f private_key.pem
