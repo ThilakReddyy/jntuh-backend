@@ -4,21 +4,30 @@
 
 Production traffic reaches the FastAPI service through Cloudflare and a reverse proxy on EC2. The application uses PostgreSQL, Redis, RabbitMQ, S3-compatible object storage, notification providers, and external JNTUH result servers.
 
-The shared application image runs in separate `app` (Uvicorn) and `worker`
-(queue consumer) containers. The API also runs notification/job schedulers.
-A one-shot `migrate` service performs the repository's existing Prisma schema sync.
+The application image starts two logical processes:
 
-The workflow runs `bash scripts/deploy.sh`, which builds the image, updates the
-whole Compose stack, waits for health, reloads monitoring configuration and runs
-telemetry smoke checks. It requires Docker Compose v2.24.4 or newer; the
-deployment preflight installs a pinned, checksum-verified user-local plugin on
-Linux if needed. Set
-`GRAFANA_ADMIN_PASSWORD` in the host `.env` before the first deployment. Preserve
-the current Compose project name and volumes; drain the old non-persistent
-RabbitMQ queues before first replacing that container.
+- Uvicorn serving `main:app` in the foreground.
+- `main2.py` consuming result queues in the background.
 
-See [Observability](OBSERVABILITY.md) for the seven Grafana dashboards, access,
-retention, host exporter firewall requirements, testing and upgrade details.
+The API also starts the result-notification and job-refresh schedulers in its lifespan.
+
+For component details and data flows, see `architecture.md`.
+
+## Current repository caveat
+
+The GitHub Actions workflow runs:
+
+```bash
+docker-compose build app
+docker-compose up -d --no-deps app
+```
+
+The `app` service is commented out in the committed `docker-compose.yml`. A clean checkout therefore does not satisfy the deployment workflow by itself. Before relying on automated deployment, do one of the following:
+
+1. Enable and maintain the `app` service in the committed Compose configuration; or
+2. Provide a production Compose override and update the workflow to reference it explicitly.
+
+Do not assume a host-only untracked override will survive every provisioning or recovery scenario. Treat the Compose/workflow contract as a release prerequisite.
 
 ## GitHub Actions prerequisites
 

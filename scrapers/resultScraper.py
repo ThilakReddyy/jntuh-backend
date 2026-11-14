@@ -1,4 +1,3 @@
-from utils.observability import set_operation_outcome
 # Import necessary libraries
 import asyncio
 from itertools import chain
@@ -6,7 +5,6 @@ import aiohttp
 from bs4 import BeautifulSoup, Tag
 from data.examCodes import load_exam_codes
 from utils.logger import scraping_logger
-from utils.observability import observed
 
 
 # Define a class for scraping JNTUH results
@@ -76,7 +74,6 @@ class ResultScraper:
             ],
         }
 
-    @observed("upstream", "jntuh_fetch")
     async def fetch_result(self, session, exam_code, payload):
         payloaddata = "?&examCode=" + exam_code + payload + self.roll_number
         headers = {
@@ -87,7 +84,6 @@ class ResultScraper:
         async with session.get(
             self.url + payloaddata, ssl=False, headers=headers, timeout=5
         ) as response:
-            response.raise_for_status()
             return await response.text()
 
     def scrape_results(self, semester_code, response):
@@ -282,12 +278,10 @@ class ResultScraper:
 
             self.results["results"] = self.exam_code_results
         except Exception as e:
-            set_operation_outcome("error")
             scraping_logger.warning(
                 f"Something unexpecting has happend while scraping results: {e}"
             )
 
-    @observed("scraper", "student_results", empty_result=True)
     async def run(self):
         try:
             await self.scrape_all_results()
@@ -301,7 +295,6 @@ class ResultScraper:
                 )
                 await self.scrape_all_results(failed_codes)
             if self.failed_exam_codes:
-                set_operation_outcome("error")
                 scraping_logger.info(
                     f"The roll_number {self.roll_number} has failed to get the exam codes of len {len(self.failed_exam_codes)}"
                 )
@@ -316,6 +309,5 @@ class ResultScraper:
 
             return None
         except Exception as e:
-            set_operation_outcome("error")
             self.logger.error(f"Fatal error: {e}")
             return None

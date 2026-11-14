@@ -15,10 +15,14 @@ RUN apt-get update && \
 COPY . .
 
 
+
 EXPOSE 8000
 
 
 RUN prisma generate
 
 
+
 CMD sh -c "prisma db push && python main2.py & uvicorn main:app --host 0.0.0.0 --port 8000"
+
+

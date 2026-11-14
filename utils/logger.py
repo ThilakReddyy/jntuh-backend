@@ -1,55 +1,57 @@
-"""Structured stdout logs, collected once by Alloy from Docker.
-
-No network calls or unbounded queues in application logging. Student roll
-numbers in legacy messages are redacted; trace IDs provide correlation.
-"""
-import json
 import logging
-import os
-import re
-import sys
-from datetime import datetime, timezone
+import queue
+from logging_loki import LokiQueueHandler
 
-from opentelemetry import trace
-from utils.observability import request_id_context
+# Common log format
+LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"
+LOG_FORMAT = "%(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOKI_ENDPOINT = "http://loki:3100/loki/api/v1/push"
 
-_ROLL = re.compile(r"\b\d{2}[A-Z0-9]{8}(?=[A-Z][a-z]|\b)", re.IGNORECASE)
-_URL_SECRET = re.compile(r"(://)[^\s/@]+:[^\s/@]+@")
-_QUERY = re.compile(r"(https?://[^\s?]+)\?[^\s]+")
-
-
-class JsonFormatter(logging.Formatter):
-    def format(self, record):
-        context = trace.get_current_span().get_span_context()
-        message = _ROLL.sub("[roll-redacted]", record.getMessage())
-        message = _URL_SECRET.sub(r"\1[redacted]@", message)
-        message = _QUERY.sub(r"\1?[redacted]", message)
-        data = {"timestamp": datetime.now(timezone.utc).isoformat(), "level": record.levelname,
-                "service": os.getenv("OTEL_SERVICE_NAME", "jntuh-api"), "logger": record.name,
-                "message": message, "request_id": request_id_context.get(),
-                "trace_id": format(context.trace_id, "032x") if context.is_valid else "",
-                "span_id": format(context.span_id, "016x") if context.is_valid else ""}
-        for key in ("method", "route", "status", "duration_ms", "component", "operation", "outcome"):
-            if hasattr(record, key):
-                data[key] = getattr(record, key)
-        if record.exc_info:
-            # Exception messages may contain SQL parameters or provider credentials.
-            data["exception_type"] = record.exc_info[0].__name__
-        return json.dumps(data)
+log_queue = queue.Queue(-1)  # -1 for infinite size
+loki_handler = LokiQueueHandler(
+    queue=log_queue,
+    url=LOKI_ENDPOINT,
+    tags={"application": "fastapi"},
+    version="1",
+)
 
 
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(JsonFormatter())
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), handlers=[handler], force=True)
-for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-    logging.getLogger(name).handlers.clear()
-    logging.getLogger(name).propagate = True
-# HTTP telemetry middleware already logs requests without raw query strings.
-logging.getLogger("uvicorn.access").disabled = True
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logger = logging.getLogger("app")
+# Main Logger
+logging.basicConfig(
+    level=logging.INFO,
+    format=LOG_FORMAT,
+    datefmt=DATE_FORMAT,
+    handlers=[
+        logging.FileHandler("app.log"),  # General app logs
+        logging.StreamHandler(),  # Print to console
+        loki_handler,
+    ],
+)
+
+# Separate loggers for RabbitMQ & Database
 rabbitmq_logger = logging.getLogger("rabbitmq")
 database_logger = logging.getLogger("database")
 redis_logger = logging.getLogger("redis")
 scraping_logger = logging.getLogger("scraping")
 telegram_logger = logging.getLogger("telegram")
+
+
+def add_file_handler(logger, filename):
+    handler = logging.FileHandler(filename)
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    logger.addHandler(handler)
+    logger.addHandler(loki_handler)  # Send component logs to Loki as well
+
+
+add_file_handler(rabbitmq_logger, "rabbitmq.log")
+add_file_handler(database_logger, "database.log")
+add_file_handler(redis_logger, "redis.log")
+add_file_handler(scraping_logger, "scraper.log")
+add_file_handler(telegram_logger, "telegram.log")
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.ERROR)
+
+
+logger = logging.getLogger(__name__)

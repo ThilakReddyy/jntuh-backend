@@ -1,11 +1,7 @@
-from utils.observability import set_operation_outcome
 import asyncio
 from collections.abc import Iterator
 
 import aio_pika
-from opentelemetry import propagate
-from opentelemetry.trace import SpanKind
-from utils.observability import operation, observed, WORKER_CONNECTED
 
 from config.connection import prismaConnection
 from config.redisConnection import redisConnection
@@ -105,7 +101,6 @@ async def process_class_results_message(message_body: str) -> None:
 
 
 # Define a function to process messages
-@observed("worker", "student_results", empty_result=True)
 async def process_message(message_body: str) -> bool:
     try:
         """
@@ -116,7 +111,6 @@ async def process_message(message_body: str) -> bool:
 
         url = check_url()
         if not url:
-            set_operation_outcome("unavailable")
             rabbitmq_logger.warning("No url found, skipping processing...")
             return False
 
@@ -154,7 +148,6 @@ async def process_message(message_body: str) -> bool:
         return True
 
     except Exception as e:
-        set_operation_outcome("error")
         scraping_logger.error(f"Error while scarping results: {e}")
         return False
 
@@ -165,25 +158,21 @@ async def _consume_default_queue(queue) -> None:
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
             try:
-                with operation("rabbitmq", "consume_default", kind=SpanKind.CONSUMER,
-                               context=propagate.extract(message.headers or {})) as outcome:
-                    async with message.process():
-                        body = message.body.decode()
-                        # Remove the roll number from Redis after successful processing
-                        if redisConnection.client:
-                            redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
-                            rabbitmq_logger.info(
-                                f"Removed roll number {body} from Redis."
-                            )
-                        else:
-                            rabbitmq_logger.warning("Redis is not found")
+                async with message.process():
+                    body = message.body.decode()
+                    # Remove the roll number from Redis after successful processing
+                    if redisConnection.client:
+                        redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
+                        rabbitmq_logger.info(
+                            f"Removed roll number {body} from Redis."
+                        )
+                    else:
+                        rabbitmq_logger.warning("Redis is not found")
 
-                        if body == NOTIFICATIONS_REDIS_KEY:
-                            await refresh_notifications()
-                        else:
-                            result = await process_message(body)
-                            if not result:
-                                outcome["outcome"] = "empty"
+                    if body == NOTIFICATIONS_REDIS_KEY:
+                        await refresh_notifications()
+                    else:
+                        await process_message(body)
 
             except Exception as error:
                 rabbitmq_logger.error(
@@ -197,10 +186,8 @@ async def _consume_class_results_queue(queue) -> None:
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
             try:
-                with operation("rabbitmq", "consume_class", kind=SpanKind.CONSUMER,
-                               context=propagate.extract(message.headers or {})):
-                    async with message.process():
-                        await process_class_results_message(message.body.decode())
+                async with message.process():
+                    await process_class_results_message(message.body.decode())
             except Exception as error:
                 rabbitmq_logger.error(
                     f"Error processing class results message: {error},{message.body}"
@@ -241,30 +228,14 @@ async def consume_messages():
                 f"Waiting for messages in queue: {CLASS_RESULTS_QUEUE_NAME}"
             )
 
-            async def monitor_connection():
-                while True:
-                    WORKER_CONNECTED.set(int(connection.connected.is_set()))
-                    await asyncio.sleep(5)
-
-            WORKER_CONNECTED.set(1)
-            monitor = asyncio.create_task(monitor_connection())
-            try:
-                await asyncio.gather(
-                    _consume_default_queue(queue),
-                    _consume_class_results_queue(class_results_queue),
-                )
-            finally:
-                monitor.cancel()
-                await asyncio.gather(monitor, return_exceptions=True)
+            await asyncio.gather(
+                _consume_default_queue(queue),
+                _consume_class_results_queue(class_results_queue),
+            )
 
     except asyncio.CancelledError:
         rabbitmq_logger.info("Message consumption was cancelled.")
     except Exception as e:
         rabbitmq_logger.error(f"An error occurred: {e}")
-        raise
     finally:
-        WORKER_CONNECTED.set(0)
-        redisConnection.disconnect()
-        if prismaConnection.prisma.is_connected():
-            await prismaConnection.disconnect()
         rabbitmq_logger.info("Shutting down gracefully...")

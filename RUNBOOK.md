@@ -28,17 +28,23 @@ Public checks:
 
 ```bash
 curl -i -H "X-Api-Key: $JNTUH_API_KEY" https://jntuhresults.dhethi.com/api/health
-docker compose exec -T app python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"
+curl -fsS https://jntuhresults.dhethi.com/metrics > /dev/null
 ```
 
-`/api/health`, `/health/*` and `/metrics` are exempt from the API header guard. Restrict the latter two to internal access at the reverse proxy.
+`/api/health` is protected by the API header guard. `/metrics` is exempt.
 
 ## Logs and metrics
 
-Application/component logs are JSON on stdout; inspect them in Grafana or with
-`docker compose logs --tail=200 app worker`. Legacy log files are no longer written.
+Application/component files:
 
-Alloy collects structured stdout logs from Docker into Loki. Grafana links log trace IDs to Tempo. See [Observability](OBSERVABILITY.md) for request correlation and collector troubleshooting.
+- `app.log`
+- `rabbitmq.log`
+- `database.log`
+- `redis.log`
+- `scraper.log`
+- `telegram.log`
+
+Logs also flow to Loki when its configured endpoint is reachable. Use Prometheus/Grafana to correlate API latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. A local/container networking mismatch in `utils/logger.py` can prevent Loki delivery without stopping application requests.
 
 ## Result request returns 202 indefinitely
 
@@ -195,7 +201,7 @@ Verify `CHATBOT_API_KEY`, `CHATBOT_BASE_URL`, and `CHATBOT_MODEL` without loggin
 
 ## Monitoring stack failure
 
-Prometheus scrapes API, worker, dependencies, host/container exporters and the telemetry services. Grafana provisions seven dashboards and Prometheus/Loki/Tempo data sources. Run `python3 scripts/observability_smoke.py --skip-results` to verify the complete pipeline.
+Prometheus scrapes FastAPI, RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Grafana depends on the configured data sources; Loki stores application logs.
 
 An observability failure is not necessarily an API failure. Check each target independently, restore monitoring, and use local/container logs while telemetry is unavailable. Restrict monitoring ports from public access.
 

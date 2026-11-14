@@ -1,7 +1,4 @@
 import aio_pika
-from opentelemetry import propagate
-from opentelemetry.trace import SpanKind
-from utils.observability import operation
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from config.redisConnection import redisConnection
@@ -28,7 +25,10 @@ async def publish_class_results_message(app: FastAPI, roll_number: str) -> bool:
             )
             return False
 
-        await _publish(channel.default_exchange, roll_number, CLASS_RESULTS_QUEUE_NAME)
+        await channel.default_exchange.publish(
+            aio_pika.Message(body=roll_number.encode()),
+            routing_key=CLASS_RESULTS_QUEUE_NAME,
+        )
     rabbitmq_logger.info(
         f"Published {roll_number} to queue: {CLASS_RESULTS_QUEUE_NAME}"
     )
@@ -68,7 +68,10 @@ async def publish_message(
                     },
                 )
 
-            await _publish(channel.default_exchange, rollNo, QUEUE_NAME)
+            await channel.default_exchange.publish(
+                aio_pika.Message(body=rollNo.encode()),
+                routing_key=QUEUE_NAME,
+            )
 
         if rollNo == NOTIFICATIONS_REDIS_KEY:
             return {"status": "success", "message": "Notifications are been fetched"}
@@ -89,15 +92,4 @@ async def publish_message(
                 "status": "failure",
                 "message": "Unknown Exception has occurred!!",
             },
-        )
-
-
-async def _publish(exchange, body, queue):
-    with operation("rabbitmq", "publish", kind=SpanKind.PRODUCER):
-        headers = {}
-        propagate.inject(headers)
-        await exchange.publish(
-            aio_pika.Message(body=body.encode(), headers=headers,
-                             delivery_mode=aio_pika.DeliveryMode.PERSISTENT),
-            routing_key=queue,
         )

@@ -1,7 +1,0 @@
-modules:
-  http_ready:
-    prober: http
-    timeout: 6s
-    http:
-      valid_status_codes: [200]
-      preferred_ip_protocol: ip4
