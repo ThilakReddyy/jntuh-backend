@@ -38,8 +38,13 @@ means no sample has been emitted yet, not necessarily a collector failure.
 2. Set `GRAFANA_ADMIN_PASSWORD` in the host `.env` to a strong password. Optionally
    set `GRAFANA_ADMIN_USER` (default `admin`). These bootstrap settings only apply
    to an empty Grafana database; an existing Grafana volume retains its login.
-3. Install Docker Compose v2.24.4 or newer (`docker compose`). The GitHub deployment
-   workflow runs `bash scripts/deploy.sh`, builds a version-tagged application
+3. The deployment script checks for Docker Compose v2.24.4 or newer (`docker compose`).
+   If the plugin is missing or too old on Linux, it installs pinned Compose v2.40.3
+   from Docker's official release into the deployment user's
+   `${DOCKER_CONFIG:-~/.docker}/cli-plugins` directory after SHA-256 verification.
+   Docker Engine and Python 3 must already be installed; no sudo or daemon restart
+   is needed for the plugin. The GitHub deployment workflow runs
+   `bash scripts/deploy.sh`, builds a version-tagged application
    image, starts the entire stack, checks service health, and verifies telemetry.
    A dedicated one-shot `migrate` service runs `prisma db push --skip-generate`
    because this repository has no migration history. It does not accept data loss.
@@ -140,6 +145,16 @@ reverse proxy should deny these paths. The existing public `/api/health` is only
 liveness response; `/health/ready` actually checks PostgreSQL, Redis and RabbitMQ.
 
 ## Verification and troubleshooting
+
+If deployment reports `unknown flag: --quiet` with top-level `docker` usage,
+check `docker compose version`: the CLI plugin is missing or unsupported.
+`python3 scripts/ensure_compose.py` performs the same preflight used automatically
+by deployment. Legacy `docker-compose` v1 is insufficient for `up --wait` and the
+Desktop override. Installation requires HTTPS access to GitHub release assets;
+a download/checksum failure stops deployment before any service changes. A
+user-local installation is pinned and does not auto-update; review the installer's
+`INSTALL_VERSION` when upgrading. Docker documents this installation location in
+[its Compose plugin instructions](https://docs.docker.com/compose/install/linux/).
 
 ```bash
 python3 scripts/observability_smoke.py --skip-results

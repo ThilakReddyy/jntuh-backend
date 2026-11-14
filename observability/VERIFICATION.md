@@ -54,3 +54,21 @@ Grafana/backend APIs; a visual screenshot review was not performed.
 
 Re-run `scripts/observability_smoke.py`, `pytest`, and `promtool test rules` after
 updates; see [the operating guide](../OBSERVABILITY.md).
+
+## Deployment compatibility follow-up
+
+The EC2 deployment reported `unknown flag: --quiet` from the top-level Docker CLI
+because a supported `docker compose` plugin was not available. Deployment now runs
+`scripts/ensure_compose.py` before configuration validation, build or service changes.
+
+- 25 targeted preflight/observability tests passed, covering version detection,
+  installation selection, checksum protection and fail-fast deployment behavior.
+- In a disposable Linux x86_64 Docker CLI 27 container with Compose removed, the
+  preflight installed Compose v2.40.3 and reused it on the second invocation.
+  `docker compose config --quiet` accepted this repository's configuration, and
+  `up --help` confirmed support for `--wait-timeout`.
+- Official release assets were downloaded from GitHub on the host. The Linux
+  container used identical mounted assets for the download step because local
+  Docker DNS could not resolve GitHub; checksum verification, binary execution
+  and Docker plugin discovery ran inside the Linux container.
+- No production host changes or workflow rerun were performed during this fix.

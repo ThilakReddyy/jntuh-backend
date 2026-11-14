@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Older EC2 hosts may only have the legacy `docker-compose` command.
+# Install a supported CLI plugin before using any Compose-specific flags.
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir/.."
+python3 scripts/ensure_compose.py
 # Keep the existing Compose project name: changing it changes volume names.
 export APP_VERSION="${APP_VERSION:-$(git rev-parse --short HEAD)}"
 docker compose config --quiet

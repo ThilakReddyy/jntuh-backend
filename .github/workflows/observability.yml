@@ -29,6 +29,7 @@ jobs:
           python -m pytest -q
       - name: Start Compose stack
         run: |
+          python3 scripts/ensure_compose.py
           docker compose config --quiet
           docker compose build app
           docker compose up -d --wait --wait-timeout 240

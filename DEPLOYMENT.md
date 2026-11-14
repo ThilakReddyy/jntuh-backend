@@ -10,7 +10,9 @@ A one-shot `migrate` service performs the repository's existing Prisma schema sy
 
 The workflow runs `bash scripts/deploy.sh`, which builds the image, updates the
 whole Compose stack, waits for health, reloads monitoring configuration and runs
-telemetry smoke checks. It uses Docker Compose v2.24.4 or newer. Set
+telemetry smoke checks. It requires Docker Compose v2.24.4 or newer; the
+deployment preflight installs a pinned, checksum-verified user-local plugin on
+Linux if needed. Set
 `GRAFANA_ADMIN_PASSWORD` in the host `.env` before the first deployment. Preserve
 the current Compose project name and volumes; drain the old non-persistent
 RabbitMQ queues before first replacing that container.

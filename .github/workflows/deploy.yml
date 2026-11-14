@@ -40,7 +40,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Fail the deployment if build, schema sync, health, or telemetry fails.
+            # Bootstrap a supported Compose plugin, then verify the whole stack.
             bash scripts/deploy.sh
 
             exit
