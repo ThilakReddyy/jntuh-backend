@@ -19,7 +19,10 @@ COPY . .
 EXPOSE 8000
 
 
-RUN prisma generate
+# Install a fixed Node release so Prisma does not select an unsupported prerelease.
+ENV PRISMA_NODEENV_CACHE_DIR=/opt/prisma-nodeenv
+RUN python -m nodeenv --node=22.23.5 "$PRISMA_NODEENV_CACHE_DIR" && \
+    prisma generate
 
 
 
