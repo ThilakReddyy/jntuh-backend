@@ -1,0 +1,1189 @@
+{
+  "id": null,
+  "uid": "jntuh-rabbitmq",
+  "title": "JNTUH / RabbitMQ",
+  "description": "",
+  "tags": [
+    "jntuh",
+    "observability"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": false,
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/d/jntuh-overview",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/jntuh-containers",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "API & Worker",
+      "type": "link",
+      "url": "/d/jntuh-api",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "PostgreSQL",
+      "type": "link",
+      "url": "/d/jntuh-postgres",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Redis",
+      "type": "link",
+      "url": "/d/jntuh-redis",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "RabbitMQ",
+      "type": "link",
+      "url": "/d/jntuh-rabbitmq",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Logs & Traces",
+      "type": "link",
+      "url": "/d/jntuh-logs",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "jntuh-prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{job=\"cadvisor\",compose_project!=\"\"}, compose_project)",
+          "refId": "project"
+        },
+        "definition": "label_values(container_last_seen{job=\"cadvisor\",compose_project!=\"\"}, compose_project)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": []
+      },
+      {
+        "name": "queue",
+        "label": "Queue",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "jntuh-prometheus"
+        },
+        "query": {
+          "query": "label_values(rabbitmq_queue_messages_ready{job=\"rabbitmq_queues\"}, queue)",
+          "refId": "queue"
+        },
+        "definition": "label_values(rabbitmq_queue_messages_ready{job=\"rabbitmq_queues\"}, queue)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "RabbitMQ exporter up",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"rabbitmq\"}",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 1
+    },
+    {
+      "title": "Connections / channels",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_connections{job=\"rabbitmq\"}",
+          "legendFormat": "connections",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "rabbitmq_channels{job=\"rabbitmq\"}",
+          "legendFormat": "channels",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 2
+    },
+    {
+      "title": "Ready / unacknowledged messages",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_queue_messages_ready{job=\"rabbitmq_queues\",queue=~\"$queue\"}",
+          "legendFormat": "{{queue}} ready",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "rabbitmq_queue_messages_unacked{job=\"rabbitmq_queues\",queue=~\"$queue\"}",
+          "legendFormat": "{{queue}} unacknowledged",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 3
+    },
+    {
+      "title": "Consumers by queue",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_queue_consumers{job=\"rabbitmq_queues\",queue=~\"$queue\"}",
+          "legendFormat": "{{queue}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 4
+    },
+    {
+      "title": "Message publish rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rabbitmq_channel_messages_published_total{job=\"rabbitmq\"}[$__rate_interval]))",
+          "legendFormat": "published",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 5
+    },
+    {
+      "title": "Messages delivered / acknowledged",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rabbitmq_channel_messages_delivered_ack_total{job=\"rabbitmq\"}[$__rate_interval]))",
+          "legendFormat": "delivered",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "sum(rate(rabbitmq_channel_messages_acked_total{job=\"rabbitmq\"}[$__rate_interval]))",
+          "legendFormat": "acknowledged",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 6
+    },
+    {
+      "title": "Redelivery rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rabbitmq_channel_messages_redelivered_total{job=\"rabbitmq\"}[$__rate_interval]))",
+          "legendFormat": "redelivered",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 7
+    },
+    {
+      "title": "Broker memory used / watermark",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_process_resident_memory_bytes{job=\"rabbitmq\"}",
+          "legendFormat": "resident memory",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "rabbitmq_resident_memory_limit_bytes{job=\"rabbitmq\"}",
+          "legendFormat": "watermark",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 8
+    },
+    {
+      "title": "Disk space available / limit",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_disk_space_available_bytes{job=\"rabbitmq\"}",
+          "legendFormat": "available",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "rabbitmq_disk_space_available_limit_bytes{job=\"rabbitmq\"}",
+          "legendFormat": "minimum",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 9
+    },
+    {
+      "title": "File descriptors / socket usage",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "targets": [
+        {
+          "expr": "rabbitmq_process_open_fds{job=\"rabbitmq\"}",
+          "legendFormat": "open descriptors",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "rabbitmq_process_open_tcp_sockets{job=\"rabbitmq\"}",
+          "legendFormat": "open sockets",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 10
+    },
+    {
+      "title": "CPU by container (% of one core)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "100% equals one fully used CPU core; a multi-core container can exceed 100%.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "targets": [
+        {
+          "expr": "100 * sum by (container) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 11
+    },
+    {
+      "title": "Memory working set by container",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (container_memory_working_set_bytes{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"})",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 12
+    },
+    {
+      "title": "Memory RSS by container",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (container_memory_rss{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"})",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 13
+    },
+    {
+      "title": "Memory limit utilization",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "Containers without a configured limit may report the host memory limit.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "targets": [
+        {
+          "expr": "100 * sum by (container) (container_memory_working_set_bytes{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}) / sum by (container) (container_spec_memory_limit_bytes{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"} > 0)",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 14
+    },
+    {
+      "title": "Network received by container",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (rate(container_network_receive_bytes_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 15
+    },
+    {
+      "title": "Network transmitted by container",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (rate(container_network_transmit_bytes_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 16
+    },
+    {
+      "title": "Network receive/transmit errors",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (rate(container_network_receive_errors_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}} receive",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "sum by (container) (rate(container_network_transmit_errors_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}} transmit",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 17
+    },
+    {
+      "title": "Network packets dropped",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "jntuh-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (rate(container_network_receive_packets_dropped_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}} receive",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "expr": "sum by (container) (rate(container_network_transmit_packets_dropped_total{job=\"cadvisor\",compose_project=~\"$project\",compose_service=~\"rabbitmq\",image!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{container}} transmit",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "id": 18
+    },
+    {
+      "title": "RabbitMQ server logs",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "jntuh-loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker\",compose_project=~\"$project\",compose_service=\"rabbitmq\"}",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "id": 19
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

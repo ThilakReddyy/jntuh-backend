@@ -7,6 +7,7 @@ canonical classification.
 """
 
 from dataclasses import dataclass
+from utils.telemetry import trace_function
 
 
 PRODUCT = "PRODUCT"
@@ -113,6 +114,7 @@ TARGET_COMPANIES: tuple[CompanyTarget, ...] = (
 )
 
 
+@trace_function
 def _company_token(value: str) -> str:
     return "".join(character for character in value.casefold() if character.isalnum())
 
@@ -124,6 +126,7 @@ COMPANY_ALIASES: dict[str, CompanyTarget] = {
 }
 
 
+@trace_function
 def classify_company(company_name: str) -> tuple[str, str]:
     """Return ``(canonical name, type)`` using explicit aliases only."""
 

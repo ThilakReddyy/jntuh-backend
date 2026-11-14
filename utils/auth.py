@@ -3,8 +3,10 @@ import hmac
 from fastapi import Header, HTTPException, status
 
 from config.settings import GRACE_MARKS_ADMIN_KEY
+from utils.telemetry import trace_function
 
 
+@trace_function
 def require_admin_key(
     x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
 ) -> None:

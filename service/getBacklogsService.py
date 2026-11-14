@@ -1,6 +1,7 @@
 import json
 from fastapi import FastAPI
-from config.redisConnection import getRedisKeyValue, redisConnection
+from config.redisConnection import redisConnection
+from utils.caching import get_cached_result
 from config.settings import EXPIRY_TIME
 from database.models import (
     studentBacklogs,
@@ -9,8 +10,10 @@ from database.models import (
 from database.operations import get_details
 from messaging.publisher import publish_message
 from utils.helpers import isbpharmacyr22
+from utils.telemetry import trace_function
 
 
+@trace_function(log_completion=True)
 async def fetch_backlogs(app: FastAPI, roll_number: str):
     """Return only the subjects this student has NOT yet cleared across any attempt.
 
@@ -29,7 +32,7 @@ async def fetch_backlogs(app: FastAPI, roll_number: str):
 
     roll_backlogs_key = f"{roll_number}Backlogs"
 
-    response = getRedisKeyValue(roll_backlogs_key)
+    response = get_cached_result(roll_backlogs_key, "backlogs")
     if response is not None:
         return json.loads(response)  # pyright: ignore
 

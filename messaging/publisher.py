@@ -11,8 +11,22 @@ from config.settings import (
 )
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.logger import rabbitmq_logger
+from opentelemetry.trace import SpanKind
+from utils.telemetry import log_failure, operation, trace_function, trace_headers
 
 
+@trace_function
+async def _publish(channel, queue_name, body):
+    with operation("rabbitmq.publish", kind=SpanKind.PRODUCER, attributes={
+        "messaging.system": "rabbitmq", "messaging.destination.name": queue_name,
+    }):
+        await channel.default_exchange.publish(
+            aio_pika.Message(body=body.encode(), headers=trace_headers()),
+            routing_key=queue_name,
+        )
+
+
+@trace_function
 async def publish_class_results_message(app: FastAPI, roll_number: str) -> bool:
     """Publish a class-results request to its dedicated RabbitMQ queue."""
     async with app.state.rabbitmq_connection.channel() as channel:
@@ -25,16 +39,14 @@ async def publish_class_results_message(app: FastAPI, roll_number: str) -> bool:
             )
             return False
 
-        await channel.default_exchange.publish(
-            aio_pika.Message(body=roll_number.encode()),
-            routing_key=CLASS_RESULTS_QUEUE_NAME,
-        )
+        await _publish(channel, CLASS_RESULTS_QUEUE_NAME, roll_number)
     rabbitmq_logger.info(
         f"Published {roll_number} to queue: {CLASS_RESULTS_QUEUE_NAME}"
     )
     return True
 
 
+@trace_function
 async def publish_message(
     app: FastAPI,
     rollNo: str,
@@ -46,6 +58,7 @@ async def publish_message(
             url = check_valid_url_in_redis()
 
             if url == ".":
+                rabbitmq_logger.warning("Queue publication skipped: JNTUH upstream is unavailable")
                 return JSONResponse(
                     status_code=status.HTTP_424_FAILED_DEPENDENCY,
                     content={
@@ -59,7 +72,9 @@ async def publish_message(
 
             message_count = queue.declaration_result.message_count
             if message_count > RABBITMQ_MAX_MESSAGES:
-                rabbitmq_logger.warning("Server had execced the threshold level")
+                rabbitmq_logger.warning("Queue publication rejected: queue capacity exceeded", extra={
+                    "queue": QUEUE_NAME, "message_count": message_count,
+                })
                 return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
@@ -68,10 +83,8 @@ async def publish_message(
                     },
                 )
 
-            await channel.default_exchange.publish(
-                aio_pika.Message(body=rollNo.encode()),
-                routing_key=QUEUE_NAME,
-            )
+            await _publish(channel, QUEUE_NAME, rollNo)
+            rabbitmq_logger.info("Message published", extra={"queue": QUEUE_NAME})
 
         if rollNo == NOTIFICATIONS_REDIS_KEY:
             return {"status": "success", "message": "Notifications are been fetched"}
@@ -85,7 +98,7 @@ async def publish_message(
         )
 
     except Exception as e:
-        rabbitmq_logger.error(f"Unknown Exception while publishing: {e}")
+        log_failure("rabbitmq.publish", e, event_logger=rabbitmq_logger)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={

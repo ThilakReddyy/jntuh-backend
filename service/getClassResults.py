@@ -15,8 +15,10 @@ from database.models import (
 from database.operations import get_students_details
 from config.settings import RABBITMQ_CLASS_MAX_MESSAGES
 from messaging.publisher import publish_class_results_message
+from utils.telemetry import trace_function
 
 
+@trace_function(log_completion=True)
 async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
     """Return results for an ENTIRE class section, derived from one roll number.
 
@@ -59,6 +61,7 @@ async def fetch_class_results(app: FastAPI, roll_number: str, type: str):
             return json.loads(cached_data)  # pyright:ignore
 
     # --- Step 3: Determine roll_number2 ---
+    @trace_function(log_completion=True)
     def calculate_alt_roll_number(roll_number: str) -> str:
         if roll_number[4] != "5":
             first_two = str(int(roll_number[0:2]) + 1).zfill(2)

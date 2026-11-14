@@ -35,16 +35,27 @@ curl -fsS https://jntuhresults.dhethi.com/metrics > /dev/null
 
 ## Logs and metrics
 
+For JSON logging, API/worker traces, container CPU/memory/network panels, and
+seven provisioned Grafana dashboards, see
+[`observability/README.md`](observability/README.md). Alloy collects Docker stdout/stderr
+for every Compose service, including PostgreSQL, Redis and RabbitMQ. Use the
+Containers dashboard's service selector for the remaining monitoring/exporter
+containers, and the Logs and Traces dashboard to follow an `X-Trace-Id`.
+
 Application/component files:
 
-- `app.log`
-- `rabbitmq.log`
-- `database.log`
-- `redis.log`
-- `scraper.log`
-- `telegram.log`
+- `app-<pid>.log`
+- `rabbitmq-<pid>.log`
+- `database-<pid>.log`
+- `redis-<pid>.log`
+- `scraper-<pid>.log`
+- `telegram-<pid>.log`
 
-Logs also flow to Loki when its configured endpoint is reachable. Use Prometheus/Grafana to correlate API latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. A local/container networking mismatch in `utils/logger.py` can prevent Loki delivery without stopping application requests.
+Each local file rotates at 10 MiB with three backups. Logs flow to Loki through
+Alloy's Docker log collector. Use Prometheus/Grafana to correlate API
+latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. If Loki logs
+stop, inspect Alloy and its Docker socket access; local files/stdout continue
+independently of Loki availability.
 
 ## Result request returns 202 indefinitely
 
@@ -95,7 +106,7 @@ Symptoms:
 
 - Result misses return 424.
 - Redis `url` is `.`.
-- `scraper.log` shows both upstream probes failing.
+- `scraper-<pid>.log` or the scraper's Docker logs show both upstream probes failing.
 
 Actions:
 

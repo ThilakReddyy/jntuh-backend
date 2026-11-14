@@ -8,11 +8,13 @@ from chatbot.errors import (
     ChatbotUpstreamError,
     ChatbotUpstreamTimeoutError,
 )
+from utils.telemetry import trace_function
 
 
 class OpenAICompatibleProvider:
     """Small chat-completions client with no provider-specific SDK dependency."""
 
+    @trace_function
     def __init__(
         self,
         *,
@@ -29,6 +31,7 @@ class OpenAICompatibleProvider:
         self.max_output_tokens = max_output_tokens
 
     @property
+    @trace_function
     def configured(self) -> bool:
         if not (self.api_key and self.base_url and self.model):
             return False
@@ -38,6 +41,7 @@ class OpenAICompatibleProvider:
             return False
         return url.scheme in ("http", "https") and bool(url.host)
 
+    @trace_function
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> dict[str, Any]:

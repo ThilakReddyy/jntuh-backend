@@ -9,8 +9,10 @@ from config.settings import (
 )
 from database.operations import get_latest_notifications, get_notifications
 from messaging.publisher import publish_message
+from utils.telemetry import log_failure, trace_function
 
 
+@trace_function(log_completion=True)
 async def notification(
     page: int, category: str, regulation: str, degree: str, year: str, title: str
 ):
@@ -28,7 +30,6 @@ async def notification(
     """
     try:
         if category.lower() != "results" and category.lower() != "all":
-            print(category)
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content=[],
@@ -47,13 +48,15 @@ async def notification(
             content=results,
         )
 
-    except Exception:
+    except Exception as error:
+        log_failure("notifications.list", error)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"message": "Unexpected Error has occured"},
         )
 
 
+@trace_function(log_completion=True)
 async def getLatestNotifications():
     """Return the most-recent result notifications across all categories — the homepage feed.
 
@@ -75,7 +78,8 @@ async def getLatestNotifications():
             redisConnection.client.set(key, json.dumps(results), ex=FIVE_MINUTE_EXPIRY)
         return results
 
-    except Exception:
+    except Exception as error:
+        log_failure("notifications.latest", error)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
@@ -85,6 +89,7 @@ async def getLatestNotifications():
         )
 
 
+@trace_function(log_completion=True)
 async def refreshNotification(app: FastAPI):
     """Admin-only: enqueue a full notifications-scrape via RabbitMQ.
 

@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from config.branchDetails import get_branch_name
 from config.settings import SEMESTERS
 from utils.helpers import getGradeValue, isGreat
+from utils.telemetry import trace_function
 
 
 class StudentDetails(TypedDict):
@@ -30,6 +31,7 @@ class ResultDeviceSubscriptionPayload(BaseModel):
 
     @field_validator("deviceId")
     @classmethod
+    @trace_function
     def validate_device_id(cls, value: str) -> str:
         from uuid import UUID
 
@@ -37,6 +39,7 @@ class ResultDeviceSubscriptionPayload(BaseModel):
 
     @field_validator("deviceToken")
     @classmethod
+    @trace_function
     def validate_device_token(cls, value: str) -> str:
         token = value.strip()
         if not token or len(token) > 512:
@@ -44,6 +47,7 @@ class ResultDeviceSubscriptionPayload(BaseModel):
         return token
 
     @model_validator(mode="after")
+    @trace_function
     def validate_ios_environment(self):
         if self.platform == "ios" and self.environment is None:
             raise ValueError("APNs environment is required for iOS")
@@ -51,6 +55,7 @@ class ResultDeviceSubscriptionPayload(BaseModel):
 
     @field_validator("rollNumber")
     @classmethod
+    @trace_function
     def validate_roll_number(cls, value: str) -> str:
         roll_number = value.strip().upper()
         if len(roll_number) != 10 or not roll_number.isalnum():
@@ -65,6 +70,7 @@ class APNSDeviceRegistrationPayload(BaseModel):
 
     @field_validator("deviceId")
     @classmethod
+    @trace_function
     def validate_device_id(cls, value: str) -> str:
         from uuid import UUID
 
@@ -72,6 +78,7 @@ class APNSDeviceRegistrationPayload(BaseModel):
 
     @field_validator("deviceToken")
     @classmethod
+    @trace_function
     def validate_device_token(cls, value: str) -> str:
         token = value.strip().lower()
         if not 32 <= len(token) <= 512 or any(character not in "0123456789abcdef" for character in token):
@@ -98,6 +105,7 @@ class ProofStatusUpdate(BaseModel):
     status: Literal["approved", "rejected"]
 
 
+@trace_function
 def studentDetailsModel(details: student) -> StudentDetails:
     return {
         "name": details.name,
@@ -118,6 +126,7 @@ class StudentResult(TypedDict):
     credits: float
 
 
+@trace_function
 def studentResultModel(result: mark) -> StudentResult:
     return {
         "subjectCode": str(getattr(result.subject, "subjectCode", "") or ""),
@@ -134,6 +143,7 @@ def studentResultModel(result: mark) -> StudentResult:
     }
 
 
+@trace_function
 def studentAllResultsModel(
     results: List[mark],
 ):
@@ -166,10 +176,12 @@ def studentAllResultsModel(
     ]
 
 
+@trace_function
 def calculateGPA(grades: float, credits: float) -> str:
     return f"{round(grades / credits, 2):.2f}" if credits > 0 else "0.00"
 
 
+@trace_function
 def processResults(results: List[mark], bpharmacyR22):
     final_result = {}
     total_grades, total_credits, total_backlogs = 0.0, 0.0, 0
@@ -224,10 +236,12 @@ def processResults(results: List[mark], bpharmacyR22):
     }
 
 
+@trace_function
 def studentResultsModel(results: List[mark], bpharmacyR22=False):
     return processResults(results, bpharmacyR22)
 
 
+@trace_function
 def studentCredits(results: List[mark], credits, bpharmacyR22):
     processed_results = processResults(results, bpharmacyR22)
     semester_results = processed_results["semesters"]
@@ -275,6 +289,7 @@ def studentCredits(results: List[mark], credits, bpharmacyR22):
     return ret
 
 
+@trace_function
 def studentBacklogs(results: List[mark], bpharmacyR22):
     processed_results = processResults(results, bpharmacyR22)["semesters"]
     backlogs_data = []
@@ -296,6 +311,7 @@ def studentBacklogs(results: List[mark], bpharmacyR22):
     }
 
 
+@trace_function
 def studentResultContrast(result1, result2):
     # Extract basic details for both students
     student1_profile = {

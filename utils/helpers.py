@@ -6,6 +6,7 @@ from utils.logger import telegram_logger
 
 
 import requests
+from utils.telemetry import trace_function
 
 
 gradestogpa = {
@@ -34,16 +35,19 @@ gradestogpabppharamcyr22 = {
 }
 
 
+@trace_function
 def format_date(date: datetime) -> str:
     return date.strftime("%Y-%m-%d")
 
 
+@trace_function
 def getGradeValue(grade, bpharmacyr22):
     if bpharmacyr22:
         return gradestogpabppharamcyr22.get(grade, 0)
     return gradestogpa.get(grade, 0)
 
 
+@trace_function
 def isbpharmacyr22(roll_number):
     grad_year = int(roll_number[:2])
     return roll_number[5] == "R" and (
@@ -51,12 +55,14 @@ def isbpharmacyr22(roll_number):
     )
 
 
+@trace_function
 def isGreat(previousGrade, grade):
     previousGradeValue = gradestogpa.get(previousGrade, 0)  # Default to 1 if not found
     gradeValue = gradestogpa.get(grade, 0)  # Default to 1 if not found
     return previousGradeValue <= gradeValue
 
 
+@trace_function
 def validateRollNo(rollNumber: str = Query(..., min_length=10, max_length=10)):
     """Custom validation function for rollNo"""
     if (
@@ -69,6 +75,7 @@ def validateRollNo(rollNumber: str = Query(..., min_length=10, max_length=10)):
     return rollNumber.strip().upper()
 
 
+@trace_function
 def validateconstrastRollNos(
     rollNumber1: str = Query(..., min_length=10, max_length=10),
     rollNumber2: str = Query(..., min_length=10, max_length=10),
@@ -101,6 +108,7 @@ def validateconstrastRollNos(
     return [rollNumber1.strip().upper(), rollNumber2.strip().upper()]
 
 
+@trace_function
 def get_credit_regulation_details(roll_number: str):
     credit_regulation_details = {
         "btech": {
@@ -158,6 +166,7 @@ def get_credit_regulation_details(roll_number: str):
     return credit_regulation_details["btech"][regulation_key][entry_type]
 
 
+@trace_function
 def send_telegram_notification(data):
     if len(data) != 0:
         for item in data:

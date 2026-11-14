@@ -32,8 +32,10 @@ from service.cmm_classifier import (
     CMMClassifierConfigurationError,
     classify_cmm_document,
 )
+from utils.telemetry import trace_function
 
 
+@trace_function
 async def _notify_student_result_updated(roll_number: str) -> None:
     # Keep push providers optional during API startup; their credentials are
     # only needed when an approval actually has to be delivered.
@@ -42,6 +44,7 @@ async def _notify_student_result_updated(roll_number: str) -> None:
     await notify_student_result_updated(roll_number)
 
 
+@trace_function(log_completion=True)
 async def evaluate_eligibility(roll_no: str):
     """Pure eligibility check used by both the GET eligibility route and the POST proof upload.
 
@@ -94,6 +97,7 @@ async def evaluate_eligibility(roll_no: str):
     return True, status.HTTP_200_OK, backlogs
 
 
+@trace_function(log_completion=True)
 async def check_eligibility(app, roll_no: str):
     """Determine whether a final-year student is eligible for the JNTUH grace-marks scheme.
 
@@ -116,6 +120,7 @@ async def check_eligibility(app, roll_no: str):
     return JSONResponse(status_code=status_code, content=payload)
 
 
+@trace_function
 def _sanitize_filename(name: str) -> str:
     base = os.path.basename(name or "proof")
     return (
@@ -124,6 +129,7 @@ def _sanitize_filename(name: str) -> str:
     )
 
 
+@trace_function(log_completion=True)
 async def upload_proof(app, roll_no: str, file: UploadFile):
     """Re-verify grace-marks eligibility, then push the uploaded sheet to S3 and record it.
 
@@ -253,6 +259,7 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
     )
 
 
+@trace_function
 def _serialize_proof(row) -> dict:
     return {
         "id": row.id,
@@ -266,6 +273,7 @@ def _serialize_proof(row) -> dict:
     }
 
 
+@trace_function(log_completion=True)
 async def get_proof_with_backlogs(app, proof_id: str, admin_key):
     """Single proof view: row metadata + 1-hour presigned GET URL + the student's backlog payload."""
 
@@ -302,6 +310,7 @@ async def get_proof_with_backlogs(app, proof_id: str, admin_key):
     )
 
 
+@trace_function(log_completion=True)
 async def apply_grace_marks(app, payload: GraceMarksPayload):
     """Insert one grace-marks mark row per subject in the payload.
 
@@ -398,6 +407,7 @@ async def apply_grace_marks(app, payload: GraceMarksPayload):
     )
 
 
+@trace_function(log_completion=True)
 async def update_proof_status(app, proof_id: str, payload: ProofStatusUpdate):
     """Set a grace-marks proof's review status to `approved` or `rejected`.
 
@@ -460,6 +470,7 @@ async def update_proof_status(app, proof_id: str, payload: ProofStatusUpdate):
     )
 
 
+@trace_function(log_completion=True)
 async def list_pending_proofs(app, admin_key: str | None):
     """Admin-only listing of the oldest 10 pending proofs, each with a signed GET URL.
 

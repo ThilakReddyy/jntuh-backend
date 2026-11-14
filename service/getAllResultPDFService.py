@@ -9,8 +9,10 @@ from starlette.concurrency import run_in_threadpool
 
 from service.all_results_pdf import generate_all_results_pdf
 from service.getAllResultService import fetch_all_results
+from utils.telemetry import trace_function
 
 
+@trace_function(log_completion=True)
 async def fetch_all_results_pdf(app: FastAPI, roll_number: str) -> Response:
     result = await fetch_all_results(app, roll_number)
     if isinstance(result, Response):

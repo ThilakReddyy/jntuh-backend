@@ -5,6 +5,7 @@ from config.redisConnection import redisConnection
 from scrapers.serverChecker import check_valid_url_in_redis
 from utils.helpers import isbpharmacyr22
 from utils.logger import redis_logger
+from utils.caching import get_cached_result
 from config.settings import EXPIRY_TIME
 from database.models import (
     studentDetailsModel,
@@ -12,8 +13,10 @@ from database.models import (
 )
 from database.operations import get_details
 from messaging.publisher import publish_message
+from utils.telemetry import trace_function
 
 
+@trace_function(log_completion=True)
 async def fetch_results(app: FastAPI, roll_number: str):
     """Return the CONSOLIDATED final mark sheet for a single student.
 
@@ -38,7 +41,7 @@ async def fetch_results(app: FastAPI, roll_number: str):
 
     url = "."
     if redisConnection.client:
-        cached_data = redisConnection.client.get(roll_results_key)
+        cached_data = get_cached_result(roll_results_key, "academic")
         url = check_valid_url_in_redis()
 
         if cached_data:

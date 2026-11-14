@@ -57,6 +57,7 @@ from service.subscriptionService import (
 from service import grace_marks_service
 from utils.auth import require_admin_key
 from utils.helpers import validateRollNo, validateconstrastRollNos
+from utils.telemetry import trace_function
 
 
 router = APIRouter()
@@ -68,15 +69,18 @@ MCP_SETUP_PAGE = os.path.join(
 )
 
 
+@trace_function
 def create_routes(app: FastAPI):
     """Creates routes and injects the FastAPI app instance."""
 
     @router.get("/", include_in_schema=False)
+    @trace_function
     async def index():
         # Docs are disabled in production, so land on the MCP setup page there.
         return RedirectResponse(url="/connect" if IS_PRODUCTION else "/docs")
 
     @router.get("/connect", include_in_schema=False)
+    @trace_function
     async def mcp_connect():
         """Serve the MCP connector setup guide."""
         return FileResponse(MCP_SETUP_PAGE, media_type="text/html")
@@ -98,6 +102,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_all_result(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -121,6 +126,7 @@ def create_routes(app: FastAPI):
             404: {"description": "No exam results available"},
         },
     )
+    @trace_function
     async def get_all_result_pdf(roll_no: str = Depends(validateRollNo)):
         return await fetch_all_results_pdf(app, roll_no)
 
@@ -142,6 +148,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_result(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -166,6 +173,7 @@ def create_routes(app: FastAPI):
             202: {"description": "Result scrape queued"},
         },
     )
+    @trace_function
     async def get_cmm(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -185,6 +193,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_backlogs(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -204,6 +213,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_credits_checker(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -223,6 +233,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_result_contrast(
         roll_nos: list[str] = Depends(validateconstrastRollNos),
     ):
@@ -244,6 +255,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def check_grace_marks_eligibility(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -262,6 +274,7 @@ def create_routes(app: FastAPI):
         tags=["Results"],
     )
     @limiter.limit("5/minute")
+    @trace_function
     async def upload_grace_marks_proof(
         request: Request,
         roll_no: str = Depends(validateRollNo),
@@ -282,6 +295,7 @@ def create_routes(app: FastAPI):
         include_in_schema=False,
     )
     @limiter.limit("10/minute")
+    @trace_function
     async def list_pending_grace_marks_proofs(
         request: Request,
         x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
@@ -302,6 +316,7 @@ def create_routes(app: FastAPI):
         include_in_schema=False,
     )
     @limiter.limit("10/minute")
+    @trace_function
     async def get_grace_marks_proof_route(
         request: Request,
         proof_id: str,
@@ -326,6 +341,7 @@ def create_routes(app: FastAPI):
         dependencies=[Depends(require_admin_key)],
     )
     @limiter.limit("10/minute")
+    @trace_function
     async def update_grace_marks_proof_status_route(
         request: Request,
         proof_id: str,
@@ -353,6 +369,7 @@ def create_routes(app: FastAPI):
         dependencies=[Depends(require_admin_key)],
     )
     @limiter.limit("10/minute")
+    @trace_function
     async def apply_grace_marks_route(
         request: Request,
         payload: GraceMarksPayload,
@@ -376,6 +393,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
     )
+    @trace_function
     async def get_class_result(
         roll_number: str = Depends(validateRollNo), type="academicresult"
     ):
@@ -387,6 +405,7 @@ def create_routes(app: FastAPI):
         description="Refresh the result of student",
         tags=["Results"],
     )
+    @trace_function
     async def hard_refresh(
         roll_no: str = Depends(validateRollNo),
     ):
@@ -406,6 +425,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Notifications"],
     )
+    @trace_function
     async def get_notifications(
         page: int,
         category: str = "all",
@@ -423,6 +443,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def refresh_notifications():
         return await refreshNotification(app)
 
@@ -438,6 +459,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Notifications"],
     )
+    @trace_function
     async def get_latest_notifications():
         return await getLatestNotifications()
 
@@ -452,6 +474,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Content"],
     )
+    @trace_function
     async def get_calendars_route():
         return await getCalendars()
 
@@ -467,6 +490,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Content"],
     )
+    @trace_function
     async def get_syllabus_route():
         return await getSyllabus()
 
@@ -482,6 +506,7 @@ def create_routes(app: FastAPI):
         tags=["Chatbot"],
     )
     @limiter.limit("10/minute")
+    @trace_function
     async def chatbot(request: Request, payload: ChatRequest):
         try:
             return await request.app.state.chatbot_service.chat(payload)
@@ -499,6 +524,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def save_subscription_end_point(data: PushSub):
         return await save_subscription(data)
 
@@ -509,6 +535,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def save_result_subscription_endpoint(
         data: ResultDeviceSubscriptionPayload,
     ):
@@ -520,6 +547,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def delete_result_subscriptions_endpoint(
         device_id: UUID = Query(alias="deviceId"),
     ):
@@ -532,6 +560,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def register_push_device_endpoint(data: APNSDeviceRegistrationPayload):
         return await register_apns_device(data)
 
@@ -541,6 +570,7 @@ def create_routes(app: FastAPI):
         tags=["Notifications"],
         include_in_schema=False,
     )
+    @trace_function
     async def unregister_push_device_endpoint(
         device_id: UUID = Query(alias="deviceId"),
     ):
@@ -557,6 +587,7 @@ def create_routes(app: FastAPI):
         ),
         tags=["Jobs"],
     )
+    @trace_function
     async def get_jobs_endpoint(
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, alias="pageSize", ge=1, le=100),
@@ -585,6 +616,7 @@ def create_routes(app: FastAPI):
         )
 
     @router.get("/api/health")
+    @trace_function
     async def get_health():
         return JSONResponse(
             status_code=status.HTTP_200_OK,

@@ -14,8 +14,10 @@ from config.settings import (
     CONTENT_EXPIRY_TIME,
     SYLLABUS_REDIS_KEY,
 )
+from utils.telemetry import trace_function
 
 
+@trace_function(log_completion=True)
 async def getCalendars():
     """Return calendars as `{ academicYear: { degree: { studyYear: { title: link } } } }`."""
     if redisConnection.client:
@@ -46,6 +48,7 @@ async def getCalendars():
     return tree
 
 
+@trace_function(log_completion=True)
 async def getSyllabus():
     """Return syllabus as `{ degree: { regulation: { category: [ {title, link} ] } } }`.
 

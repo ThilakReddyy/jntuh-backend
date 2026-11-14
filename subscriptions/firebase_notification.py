@@ -12,12 +12,14 @@ from config.settings import (
     GOOGLE_APPLICATION_CREDENTIALS,
 )
 from utils.logger import logger
+from utils.telemetry import log_failure, trace_function
 
 
 _firebase_init_lock = Lock()
 _FCM_BATCH_SIZE = 500
 
 
+@trace_function
 def _get_firebase_app():
     """Return the default Firebase app, initializing it on first use."""
     try:
@@ -42,6 +44,7 @@ def _get_firebase_app():
             return firebase_admin.initialize_app(credential, options)
 
 
+@trace_function
 def _build_result_message(exam: Mapping[str, Any]) -> messaging.Message:
     title = str(exam.get("title") or "A new JNTUH result is available").strip()
     link = str(
@@ -61,6 +64,7 @@ def _build_result_message(exam: Mapping[str, Any]) -> messaging.Message:
     )
 
 
+@trace_function
 def _build_student_result_message(
     roll_number: str, tokens: list[str]
 ) -> messaging.MulticastMessage:
@@ -77,6 +81,7 @@ def _build_student_result_message(
     )
 
 
+@trace_function
 async def notify_student_result_updated(roll_number: str) -> None:
     """Notify only devices subscribed to this roll number."""
     from database.operations import (
@@ -108,14 +113,12 @@ async def notify_student_result_updated(roll_number: str) -> None:
                 "messaging/invalid-registration-token",
             }:
                 invalid_ids.append(record.id)
-            logger.error(
-                f"Firebase student result notification failed for {roll_number}: "
-                f"{send_response.exception}"
-            )
+            log_failure("notifications.firebase.student_result", send_response.exception)
 
     await delete_result_device_subscriptions(invalid_ids)
 
 
+@trace_function
 def send_result_notification(exam: Mapping[str, Any]) -> str:
     """Send one result-release notification to the Android results topic."""
     message_id = messaging.send(
@@ -126,6 +129,7 @@ def send_result_notification(exam: Mapping[str, Any]) -> str:
     return message_id
 
 
+@trace_function
 def _send_result_notifications(exams: Sequence[Mapping[str, Any]]) -> None:
     messages = [_build_result_message(exam) for exam in exams]
     if not messages:
@@ -143,12 +147,7 @@ def _send_result_notifications(exams: Sequence[Mapping[str, Any]]) -> None:
         failure_count += response.failure_count
         for batch_index, send_response in enumerate(response.responses):
             if not send_response.success:
-                exam = exams[batch_start + batch_index]
-                logger.error(
-                    "Firebase result notification failed for "
-                    f"{exam.get('title', 'unknown result')}: "
-                    f"{send_response.exception}"
-                )
+                log_failure("notifications.firebase.broadcast_item", send_response.exception)
 
     logger.info(
         "Firebase result notifications complete: "
@@ -156,6 +155,7 @@ def _send_result_notifications(exams: Sequence[Mapping[str, Any]]) -> None:
     )
 
 
+@trace_function
 async def broadcast_result_notifications(
     exams: Sequence[Mapping[str, Any]],
 ) -> None:
@@ -165,4 +165,4 @@ async def broadcast_result_notifications(
     except Exception as error:
         # A notification-provider outage must not undo the completed scrape or
         # prevent Telegram notifications from being sent.
-        logger.error(f"Firebase result notification broadcast failed: {error}")
+        log_failure("notifications.firebase.broadcast", error)

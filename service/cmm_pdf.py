@@ -8,6 +8,7 @@ from reportlab.graphics.barcode import code128
 from reportlab.lib.colors import HexColor, white
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
+from utils.telemetry import trace_function
 
 
 PAGE_W, PAGE_H = 612, 852
@@ -33,6 +34,7 @@ GRADE_POINTS = {
 }
 
 
+@trace_function
 def fit(c, text, x, y, width, size=7, bold=False, align="left"):
     text = str(text or "")
     font = "Helvetica-Bold" if bold else "Helvetica"
@@ -53,6 +55,7 @@ def fit(c, text, x, y, width, size=7, bold=False, align="left"):
         c.drawString(x, y, text)
 
 
+@trace_function
 def background(c):
     c.setFillColor(PAPER)
     c.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
@@ -64,6 +67,7 @@ def background(c):
         c.circle(x, PAGE_H / 2, 84 + x % 32, fill=0, stroke=1)
 
 
+@trace_function
 def border(c):
     c.setStrokeColor(LINE)
     c.setLineWidth(1)
@@ -78,6 +82,7 @@ def border(c):
         c.circle(PAGE_W - 16, y, 4, fill=0, stroke=1)
 
 
+@trace_function
 def seal(c, cx, cy, radius, label):
     c.setFillColor(HexColor("#E2E9DB"))
     c.setStrokeColor(LINE)
@@ -92,6 +97,7 @@ def seal(c, cx, cy, radius, label):
     c.drawCentredString(cx, cy - 7, "SAMPLE")
 
 
+@trace_function
 def decorative_bars(c, x, y, width, height, seed=0):
     """Fill the area with meaningless bars when there is nothing to encode."""
     c.setFillColor(INK)
@@ -104,6 +110,7 @@ def decorative_bars(c, x, y, width, height, seed=0):
         index += 1
 
 
+@trace_function
 def barcode(c, x, y, width, height, seed=0, value=None):
     """Draw a scannable Code 128 symbol for `value`, scaled to span `width`.
 
@@ -145,6 +152,7 @@ def barcode(c, x, y, width, height, seed=0, value=None):
     symbol.drawOn(c, x, y)
 
 
+@trace_function
 def header(c, details, results):
     seal(c, 54, 790, 27, "JNTUH")
     seal(c, 558, 790, 30, "SAMPLE")
@@ -203,6 +211,7 @@ def header(c, details, results):
         fit(c, value, 507, yy, 76, 6.6, True)
 
 
+@trace_function
 def vertical_label(c, text, cx, cy, size=5.2):
     c.saveState()
     c.translate(cx, cy)
@@ -213,6 +222,7 @@ def vertical_label(c, text, cx, cy, size=5.2):
     c.restoreState()
 
 
+@trace_function
 def columns(c, x0, y_top, y_bottom, draw_titles=False):
     widths = [48, 174, 18, 18, 24]
     bounds = [x0]
@@ -231,6 +241,7 @@ def columns(c, x0, y_top, y_bottom, draw_titles=False):
     return bounds
 
 
+@trace_function
 def semester_rows(c, semester, bounds, top, bottom, max_rows=11):
     subjects = (semester or {}).get("subjects", [])[:max_rows]
     row_h = (top - bottom) / max_rows
@@ -244,6 +255,7 @@ def semester_rows(c, semester, bounds, top, bottom, max_rows=11):
         fit(c, f"{float(subject.get('credits', 0)):.1f}", bounds[4], yy, bounds[5] - bounds[4], 5.5, align="center")
 
 
+@trace_function
 def academic_table(c, results):
     semesters = {str(item.get("semester")): item for item in results.get("semesters", [])}
     left_x, right_x, half_w = 24, 306, 282
@@ -276,6 +288,7 @@ def academic_table(c, results):
         semester_rows(c, semesters.get(right_sem), right_bounds, data_top, bottom)
 
 
+@trace_function
 def footer(c, details, results):
     credits_label = "Number of Credits registered and secured are:"
     cgpa_label = "Aggregate Marks / CGPA Secured:"
@@ -308,6 +321,7 @@ def footer(c, details, results):
     fit(c, "SAMPLE DOCUMENT — NOT VALID FOR VERIFICATION OR OFFICIAL USE", 130, 35, 352, 5.4, True, "center")
 
 
+@trace_function
 def generate_cmm_pdf(
     payload: Mapping[str, Any], output_path: str | Path | None = None
 ) -> bytes:

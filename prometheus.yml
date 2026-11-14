@@ -19,3 +19,41 @@ scrape_configs:
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres_exporter:9187']
+
+  - job_name: "result_worker"
+    static_configs:
+      - targets: ["fastapiapp:8001"]
+
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      - source_labels: [container_label_com_docker_compose_service]
+        target_label: compose_service
+      - source_labels: [container_label_com_docker_compose_project]
+        target_label: compose_project
+      - source_labels: [name]
+        regex: '/?(.*)'
+        target_label: container
+        replacement: '$1'
+
+  - job_name: "rabbitmq_queues"
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: "loki"
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: "tempo"
+    static_configs:
+      - targets: ["tempo:3200"]
+
+  - job_name: "alloy"
+    static_configs:
+      - targets: ["alloy:12345"]

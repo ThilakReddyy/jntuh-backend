@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from config.settings import CMM_REFERENCE_PATH, GEMINI_API_KEY, GEMINI_MODEL
+from utils.telemetry import trace_function
 
 MAX_INLINE_BYTES = 19 * 1024 * 1024
 SUPPORTED_MIME_TYPES = {
@@ -76,6 +77,7 @@ class CMMClassifierConfigurationError(RuntimeError):
     """Raised when the classifier cannot be configured safely."""
 
 
+@trace_function
 def _classify_cmm_sync(
     candidate_data: bytes,
     candidate_mime_type: str,
@@ -138,6 +140,7 @@ def _classify_cmm_sync(
     return result
 
 
+@trace_function(log_completion=True)
 async def classify_cmm_document(
     candidate_data: bytes,
     candidate_mime_type: str,

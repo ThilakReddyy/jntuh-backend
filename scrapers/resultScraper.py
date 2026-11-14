@@ -5,10 +5,12 @@ import aiohttp
 from bs4 import BeautifulSoup, Tag
 from data.examCodes import load_exam_codes
 from utils.logger import scraping_logger
+from utils.telemetry import log_failure, observe, trace_function
 
 
 # Define a class for scraping JNTUH results
 class ResultScraper:
+    @trace_function
     def __init__(
         self,
         roll_number,
@@ -49,6 +51,7 @@ class ResultScraper:
         self.logger = scraping_logger
         # Exam codes for different regulations and semesters
 
+    @trace_function
     def _load_payloads(self):
         # Payloads for different types of result requests
         return {
@@ -74,6 +77,7 @@ class ResultScraper:
             ],
         }
 
+    @observe("jntuh.fetch_exam")
     async def fetch_result(self, session, exam_code, payload):
         payloaddata = "?&examCode=" + exam_code + payload + self.roll_number
         headers = {
@@ -86,6 +90,7 @@ class ResultScraper:
         ) as response:
             return await response.text()
 
+    @trace_function
     def scrape_results(self, semester_code, response):
         try:
             soup = BeautifulSoup(response, "lxml")
@@ -175,10 +180,11 @@ class ResultScraper:
                 {"examCode": semester_code, "subjects": subjects, "rcrv": rcrv}
             )
 
-        except Exception:
+        except Exception as error:
             self.failed_exam_codes.append(semester_code)
-            # self.logger.error(f"Error processing results for {self.roll_number}: {e}")
+            log_failure("jntuh.parse_exam", error, event_logger=self.logger)
 
+    @trace_function
     def _determine_degree(self):
         degree_map = {
             "A": "btech",
@@ -189,6 +195,7 @@ class ResultScraper:
         }
         return degree_map.get(self.roll_number[5])
 
+    @trace_function
     def _determine_regulation(self):
         roll = self.roll_number
         grad_year = int(roll[:2])
@@ -214,6 +221,7 @@ class ResultScraper:
         }
         return regulation_map.get(reg_code, "R19")
 
+    @trace_function
     async def scrape_all_results(self, failed_exam_codes=[]):
         tasks = {}
         degree = self._determine_degree()
@@ -282,6 +290,7 @@ class ResultScraper:
                 f"Something unexpecting has happend while scraping results: {e}"
             )
 
+    @observe("jntuh.scrape_student", none_is_error=True)
     async def run(self):
         try:
             await self.scrape_all_results()
@@ -309,5 +318,5 @@ class ResultScraper:
 
             return None
         except Exception as e:
-            self.logger.error(f"Fatal error: {e}")
+            log_failure("jntuh.scrape_student", e, event_logger=self.logger)
             return None

@@ -5,8 +5,10 @@ from pywebpush import WebPushException, webpush
 from config.settings import VAPID_PRIVATE_KEY
 from database.operations import get_all_subscriptions, get_subscription_roll_number
 from utils.logger import logger
+from utils.telemetry import log_failure, trace_function
 
 
+@trace_function
 def send_push_notification(subscription_info, title, body):
     try:
         webpush(
@@ -22,9 +24,10 @@ def send_push_notification(subscription_info, title, body):
             vapid_claims={"sub": "mailto:admin@dhethi.com"},
         )
     except WebPushException as ex:
-        print("Push failed:", ex)
+        log_failure("notifications.webpush.send", ex)
 
 
+@trace_function
 async def send_push_notification_to_particular_user(roll_number: str):
     record = await get_subscription_roll_number(roll_number)
     if record and record.subscription:
@@ -37,15 +40,15 @@ async def send_push_notification_to_particular_user(roll_number: str):
         )
 
 
+@trace_function
 async def broadcast_all(title: str):
     all_subs = await get_all_subscriptions()
 
+    @trace_function
     async def send_async():
-        loop = asyncio.get_event_loop()
         await asyncio.gather(
             *[
-                loop.run_in_executor(
-                    None,
+                asyncio.to_thread(
                     send_push_notification,
                     json.loads(record.subscription or ""),
                     f"📢 JNTUH Results Released! {title}",

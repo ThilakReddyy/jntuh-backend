@@ -1,0 +1,296 @@
+{
+  "id": null,
+  "uid": "jntuh-logs",
+  "title": "JNTUH / Logs and Traces",
+  "description": "",
+  "tags": [
+    "jntuh",
+    "observability"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": false,
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/d/jntuh-overview",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/jntuh-containers",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "API & Worker",
+      "type": "link",
+      "url": "/d/jntuh-api",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "PostgreSQL",
+      "type": "link",
+      "url": "/d/jntuh-postgres",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Redis",
+      "type": "link",
+      "url": "/d/jntuh-redis",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "RabbitMQ",
+      "type": "link",
+      "url": "/d/jntuh-rabbitmq",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Logs & Traces",
+      "type": "link",
+      "url": "/d/jntuh-logs",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "jntuh-prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{job=\"cadvisor\",compose_project!=\"\"}, compose_project)",
+          "refId": "project"
+        },
+        "definition": "label_values(container_last_seen{job=\"cadvisor\",compose_project!=\"\"}, compose_project)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": []
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "jntuh-prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{job=\"cadvisor\",compose_project=~\"$project\",compose_service!=\"\"}, compose_service)",
+          "refId": "service"
+        },
+        "definition": "label_values(container_last_seen{job=\"cadvisor\",compose_project=~\"$project\",compose_service!=\"\"}, compose_service)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": []
+      },
+      {
+        "name": "search",
+        "label": "Log search (literal text)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": []
+      },
+      {
+        "name": "trace_id",
+        "label": "Trace ID",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Correlate requests and worker processing",
+      "type": "text",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Select a project and services to browse Docker stdout/stderr. Expand an application JSON entry and click **View trace** next to TraceID. Tempo provides a **Logs for this span** link back to Loki. Paste an `X-Trace-Id` response header into **Trace ID** to filter related API/worker logs. Log search is literal text. Empty Trace ID shows all application logs. Trace IDs and request IDs are fields, never Loki stream labels."
+      },
+      "id": 1
+    },
+    {
+      "title": "All selected container logs",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "jntuh-loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker\",compose_project=~\"$project\",compose_service=~\"$service\"} |= ${search:doublequote}",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "id": 2
+    },
+    {
+      "title": "Application logs correlated by trace ID",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "jntuh-loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker\",compose_project=~\"$project\",compose_service=\"app\"} | json | __error__=\"\" | trace_id =~ \"${trace_id:regex}.*\"",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "id": 3
+    },
+    {
+      "title": "Application errors and warnings",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "jntuh-loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker\",compose_project=~\"$project\",compose_service=\"app\"} | json | __error__=\"\" | level =~ \"ERROR|CRITICAL|WARNING\"",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "id": 4
+    },
+    {
+      "title": "Application traces",
+      "type": "table",
+      "datasource": {
+        "type": "tempo",
+        "uid": "jntuh-tempo"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{ resource.service.namespace = \"jntuh\" }",
+          "limit": 30
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "id": 5
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

@@ -9,6 +9,7 @@ from chatbot.schemas import (
     ChatToolCallMetadata,
 )
 from chatbot.tools import MCPToolGateway
+from utils.telemetry import trace_function
 
 
 SYSTEM_PROMPT = """You are the JNTUH Results assistant. Answer questions about JNTUH academic results and notifications using only the tools supplied to you. Use a tool whenever current or student-specific data is needed. Never claim access to capabilities beyond those tools.
@@ -21,11 +22,13 @@ MAX_TOOL_CALL_ID_CHARACTERS = 256
 MAX_TOOL_NAME_CHARACTERS = 128
 
 
+@trace_function
 def _reject_json_constant(value: str):
     raise ValueError(f"invalid JSON constant: {value}")
 
 
 class ChatbotService:
+    @trace_function
     def __init__(
         self,
         provider: Any,
@@ -39,6 +42,7 @@ class ChatbotService:
         self.max_iterations = max_iterations
         self.max_tool_calls = max_tool_calls
 
+    @trace_function(log_completion=True)
     async def chat(self, request: ChatRequest) -> ChatResponse:
         messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(message.model_dump() for message in request.messages)
@@ -131,6 +135,7 @@ class ChatbotService:
 
         raise ChatbotResponseError("The chatbot could not produce a final answer")
 
+    @trace_function
     def _parse_tool_call(self, value: Any) -> tuple[str, str, dict[str, Any]]:
         try:
             call_id = value["id"]

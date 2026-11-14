@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 
 from scrapers.jobCompanies import PRODUCT, classify_company
 from utils.logger import logger
+from utils.telemetry import trace_function
 
 
 REMOTEOK_URL = "https://remoteok.com/api"
@@ -127,6 +128,7 @@ DEFAULT_ATS_BOARDS = (
 )
 
 
+@trace_function
 def _parse_datetime(value: Any) -> datetime | None:
     if not value:
         return None
@@ -139,6 +141,7 @@ def _parse_datetime(value: Any) -> datetime | None:
         return None
 
 
+@trace_function
 def _plain_text(value: Any, limit: int = 30000) -> str:
     if not value:
         return ""
@@ -146,6 +149,7 @@ def _plain_text(value: Any, limit: int = 30000) -> str:
     return re.sub(r"\s+", " ", text)[:limit]
 
 
+@trace_function
 def _map_type(value: str) -> str:
     lowered = value.casefold()
     if any(term in lowered for term in ("intern", "apprentice", "trainee", "co-op", "coop")):
@@ -155,6 +159,7 @@ def _map_type(value: str) -> str:
     return "FULL_TIME"
 
 
+@trace_function
 def _experience_range(text: str) -> tuple[int | None, int | None]:
     normalized = text.casefold().replace("–", "-").replace("—", "-")
     ranged = re.search(r"\b(\d{1,2})\s*(?:-|to)\s*(\d{1,2})\s*(?:years?|yrs?)\b", normalized)
@@ -170,6 +175,7 @@ def _experience_range(text: str) -> tuple[int | None, int | None]:
     return None, None
 
 
+@trace_function
 def _eligibility(location: str, remote: bool) -> str | None:
     lowered = location.casefold()
     if any(term in lowered for term in _INDIA_TERMS) or re.match(r"^in\s*,", lowered):
@@ -180,6 +186,7 @@ def _eligibility(location: str, remote: bool) -> str | None:
     return None
 
 
+@trace_function
 def _canonical_url(value: str | None) -> str:
     if not value:
         return ""
@@ -206,6 +213,7 @@ def _canonical_url(value: str | None) -> str:
         return value.strip()
 
 
+@trace_function
 def normalize_job(raw: dict[str, Any]) -> dict[str, Any] | None:
     """Normalize and filter one provider record into the database shape."""
 
@@ -285,6 +293,7 @@ def normalize_job(raw: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+@trace_function
 async def _get_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
     for attempt in range(3):
         try:
@@ -292,6 +301,10 @@ async def _get_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
                 if response.status == 429 or response.status >= 500:
                     if attempt == 2:
                         raise RuntimeError(f"{url} returned HTTP {response.status}")
+                    logger.warning("Job source request will be retried", extra={
+                        "operation": "jobs.fetch_json", "attempt": attempt + 1,
+                        "status_code": response.status,
+                    })
                     retry_after = response.headers.get("Retry-After")
                     delay = float(retry_after) if retry_after and retry_after.isdigit() else 2 ** attempt
                     await asyncio.sleep(delay + random.random())
@@ -307,10 +320,15 @@ async def _get_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
         except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as error:
             if attempt == 2:
                 raise RuntimeError(f"{url} request failed: {error}") from error
+            logger.warning("Job source request failed; retrying", extra={
+                "operation": "jobs.fetch_json", "attempt": attempt + 1,
+                "error_type": type(error).__name__,
+            })
             await asyncio.sleep((2 ** attempt) + random.random())
     return None
 
 
+@trace_function
 async def _post_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
     for attempt in range(3):
         try:
@@ -318,6 +336,10 @@ async def _post_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
                 if response.status == 429 or response.status >= 500:
                     if attempt == 2:
                         raise RuntimeError(f"{url} returned HTTP {response.status}")
+                    logger.warning("Job source request will be retried", extra={
+                        "operation": "jobs.post_json", "attempt": attempt + 1,
+                        "status_code": response.status,
+                    })
                     await asyncio.sleep((2 ** attempt) + random.random())
                     continue
                 if response.status != 200:
@@ -329,10 +351,15 @@ async def _post_json(session: aiohttp.ClientSession, url: str, **kwargs) -> Any:
         except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as error:
             if attempt == 2:
                 raise RuntimeError(f"{url} request failed: {error}") from error
+            logger.warning("Job source request failed; retrying", extra={
+                "operation": "jobs.post_json", "attempt": attempt + 1,
+                "error_type": type(error).__name__,
+            })
             await asyncio.sleep((2 ** attempt) + random.random())
     return None
 
 
+@trace_function
 async def _get_html(session: aiohttp.ClientSession, url: str, **kwargs) -> str:
     for attempt in range(3):
         try:
@@ -340,6 +367,10 @@ async def _get_html(session: aiohttp.ClientSession, url: str, **kwargs) -> str:
                 if response.status == 429 or response.status >= 500:
                     if attempt == 2:
                         raise RuntimeError(f"{url} returned HTTP {response.status}")
+                    logger.warning("Job source request will be retried", extra={
+                        "operation": "jobs.fetch_html", "attempt": attempt + 1,
+                        "status_code": response.status,
+                    })
                     await asyncio.sleep((2 ** attempt) + random.random())
                     continue
                 if response.status != 200:
@@ -351,10 +382,15 @@ async def _get_html(session: aiohttp.ClientSession, url: str, **kwargs) -> str:
         except (aiohttp.ClientError, asyncio.TimeoutError) as error:
             if attempt == 2:
                 raise RuntimeError(f"{url} request failed: {error}") from error
+            logger.warning("Job source request failed; retrying", extra={
+                "operation": "jobs.fetch_html", "attempt": attempt + 1,
+                "error_type": type(error).__name__,
+            })
             await asyncio.sleep((2 ** attempt) + random.random())
     return ""
 
 
+@trace_function
 async def _scrape_remoteok(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     data = await _get_json(session, REMOTEOK_URL)
     jobs = []
@@ -372,6 +408,7 @@ async def _scrape_remoteok(session: aiohttp.ClientSession) -> list[dict[str, Any
     return jobs
 
 
+@trace_function
 async def _scrape_remotive(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     jobs, seen = [], set()
     for category in REMOTIVE_CATEGORIES:
@@ -393,6 +430,7 @@ async def _scrape_remotive(session: aiohttp.ClientSession) -> list[dict[str, Any
     return jobs
 
 
+@trace_function
 async def _scrape_arbeitnow(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     data = await _get_json(session, ARBEITNOW_URL)
     jobs = []
@@ -410,6 +448,7 @@ async def _scrape_arbeitnow(session: aiohttp.ClientSession) -> list[dict[str, An
     return jobs
 
 
+@trace_function
 async def _scrape_amazon(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     jobs: dict[str, dict[str, Any]] = {}
     for query in (
@@ -438,6 +477,7 @@ async def _scrape_amazon(session: aiohttp.ClientSession) -> list[dict[str, Any]]
     return list(jobs.values())
 
 
+@trace_function
 async def _scrape_google(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     params = {"location": "India", "target_level": "EARLY"}
     async with session.get(GOOGLE_URL, params=params, timeout=_TIMEOUT) as response:
@@ -468,6 +508,7 @@ async def _scrape_google(session: aiohttp.ClientSession) -> list[dict[str, Any]]
     return jobs
 
 
+@trace_function
 def _parse_infosys_jobs(data: Any) -> list[dict[str, Any]]:
     jobs = []
     for item in data if isinstance(data, list) else []:
@@ -502,6 +543,7 @@ def _parse_infosys_jobs(data: Any) -> list[dict[str, Any]]:
     return jobs
 
 
+@trace_function
 async def _scrape_infosys(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     data = await _get_json(
         session, INFOSYS_URL,
@@ -515,6 +557,7 @@ async def _scrape_infosys(session: aiohttp.ClientSession) -> list[dict[str, Any]
     return _parse_infosys_jobs(data)
 
 
+@trace_function
 def _parse_tcs_jobs(items: Any) -> list[dict[str, Any]]:
     jobs = []
     for item in items if isinstance(items, list) else []:
@@ -547,6 +590,7 @@ def _parse_tcs_jobs(items: Any) -> list[dict[str, Any]]:
     return list(unique.values())
 
 
+@trace_function
 async def _scrape_tcs(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     jobs, page, total_pages = [], 1, 1
     while page <= total_pages and page <= 50:
@@ -576,6 +620,7 @@ async def _scrape_tcs(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     }.values())
 
 
+@trace_function
 def _parse_deloitte_search(body: str) -> list[dict[str, Any]]:
     soup = BeautifulSoup(body, "html.parser")
     results = []
@@ -609,6 +654,7 @@ def _parse_deloitte_search(body: str) -> list[dict[str, Any]]:
     return results
 
 
+@trace_function
 async def _scrape_deloitte(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     summaries: dict[str, dict[str, Any]] = {}
     for query in ("analyst", "associate", "intern", "graduate"):
@@ -622,6 +668,7 @@ async def _scrape_deloitte(session: aiohttp.ClientSession) -> list[dict[str, Any
             if len(BeautifulSoup(body, "html.parser").select("tr.data-row")) < 25:
                 break
 
+    @trace_function
     async def add_description(item: dict[str, Any]) -> dict[str, Any]:
         detail = BeautifulSoup(await _get_html(session, item["applicationUrl"]), "html.parser")
         container = detail.select_one(".jobdescription, .jobDescription, .job, main") or detail
@@ -641,6 +688,7 @@ async def _scrape_deloitte(session: aiohttp.ClientSession) -> list[dict[str, Any
     return jobs
 
 
+@trace_function
 def _parse_tech_mahindra_jobs(body: str) -> list[dict[str, Any]]:
     soup = BeautifulSoup(body, "html.parser")
     jobs = []
@@ -670,10 +718,12 @@ def _parse_tech_mahindra_jobs(body: str) -> list[dict[str, Any]]:
     return jobs
 
 
+@trace_function
 async def _scrape_tech_mahindra(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     return _parse_tech_mahindra_jobs(await _get_html(session, TECH_MAHINDRA_URL))
 
 
+@trace_function
 def _portal_date(value: str) -> datetime | None:
     for date_format in ("%d-%m-%Y", "%Y-%m-%d"):
         try:
@@ -683,6 +733,7 @@ def _portal_date(value: str) -> datetime | None:
     return None
 
 
+@trace_function
 async def _scrape_aicte(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     """Read the official AICTE India portal without crawling detail pages.
 
@@ -704,6 +755,7 @@ async def _scrape_aicte(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     today = datetime.utcnow().date()
     jobs = []
     for card in soup.select(".card.internship-item"):
+        @trace_function
         def card_text(selector: str) -> str:
             node = card.select_one(selector)
             return node.get_text(" ", strip=True) if node else ""
@@ -750,6 +802,7 @@ async def _scrape_aicte(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     return jobs
 
 
+@trace_function
 def _ats_boards() -> tuple[AtsBoard, ...]:
     configured = os.getenv("JOB_ATS_BOARDS_JSON")
     if not configured:
@@ -763,6 +816,7 @@ def _ats_boards() -> tuple[AtsBoard, ...]:
         return DEFAULT_ATS_BOARDS
 
 
+@trace_function
 async def _scrape_ats_board(session: aiohttp.ClientSession, board: AtsBoard) -> list[dict[str, Any]]:
     provider = board.provider.casefold()
     if provider == "greenhouse":
@@ -846,6 +900,7 @@ async def _scrape_ats_board(session: aiohttp.ClientSession, board: AtsBoard) -> 
             ):
                 candidates.append(item)
 
+        @trace_function
         async def fetch_detail(item: dict[str, Any]) -> dict[str, Any]:
             detail = await _get_json(session, f"{endpoint}/{item['id']}")
             return detail if isinstance(detail, dict) else item
@@ -888,6 +943,7 @@ async def _scrape_ats_board(session: aiohttp.ClientSession, board: AtsBoard) -> 
     raise RuntimeError(f"Unsupported ATS provider: {board.provider}")
 
 
+@trace_function
 async def scrape_all_jobs() -> list[dict[str, Any]]:
     headers = {"User-Agent": _USER_AGENT, "Accept": "application/json,text/html;q=0.9"}
     connector = aiohttp.TCPConnector(limit=12, limit_per_host=3)

@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from utils.telemetry import trace_function
 
 
 class ConversationMessage(BaseModel):
@@ -11,6 +12,7 @@ class ConversationMessage(BaseModel):
 
     @field_validator("content")
     @classmethod
+    @trace_function
     def content_must_not_be_blank(cls, value: str) -> str:
         value = value.strip()
         if not value:
@@ -26,6 +28,7 @@ class ChatRequest(BaseModel):
 
     @field_validator("message")
     @classmethod
+    @trace_function
     def message_must_not_be_blank(cls, value: str) -> str:
         value = value.strip()
         if not value:
@@ -33,6 +36,7 @@ class ChatRequest(BaseModel):
         return value
 
     @model_validator(mode="after")
+    @trace_function
     def conversation_size_is_bounded(self):
         total_characters = len(self.message) + sum(
             len(item.content) for item in self.messages

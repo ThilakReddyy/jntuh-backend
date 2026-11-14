@@ -2,8 +2,10 @@ from config.redisConnection import redisConnection
 from config.settings import EXPIRY_TIME
 from database.operations import get_exam_codes
 import json
+from utils.telemetry import trace_function
 
 
+@trace_function
 async def load_exam_codes(degree, regulation):
     examcodeskey = f"{degree}{regulation}keys"
 
