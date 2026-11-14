@@ -108,6 +108,7 @@ return 404. The web app's `/academicallresult/result` download button uses this 
 | [Contributing](CONTRIBUTING.md) | Local setup, validation, development rules, and pull request expectations. |
 | [Deployment](DEPLOYMENT.md) | Production prerequisites, environment contract, release verification, and rollback. |
 | [Security](SECURITY.md) | Vulnerability reporting, security boundaries, secrets, and hardening guidance. |
+| [Observability](OBSERVABILITY.md) | Grafana dashboards, metrics/logs/traces, alert rules, retention and smoke tests. |
 | [Operations runbook](RUNBOOK.md) | Triage and recovery procedures for result, queue, datastore, provider, and monitoring incidents. |
 
 
@@ -153,7 +154,7 @@ return 404. The web app's `/academicallresult/result` download button uses this 
    python main2.py
    ```
 
-The committed Compose file provides infrastructure while its application service remains commented out. See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup.
+The Compose stack includes separate API and worker services plus provisioned Grafana dashboards for host/container resources, API, queues, datastores, logs and traces. Set `GRAFANA_ADMIN_PASSWORD` in `.env`, then run `docker compose up -d --build --wait`. See [Observability](OBSERVABILITY.md) for deployment and verification.
 
 ## Usage
 

@@ -1,0 +1,67 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: target failure fires and then recovers
+    interval: 1m
+    input_series:
+      - series: 'up{job="api", instance="app:8000"}'
+        values: '0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ScrapeTargetDown
+        exp_alerts:
+          - exp_labels: {job: api, instance: 'app:8000', severity: critical}
+            exp_annotations: {summary: 'Metrics unavailable for api'}
+      - eval_time: 4m
+        alertname: ScrapeTargetDown
+        exp_alerts: []
+  - name: dependency readiness failure
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="readiness", instance="http://app:8000/health/ready"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: APIReadinessFailed
+        exp_alerts:
+          - exp_labels: {job: readiness, instance: 'http://app:8000/health/ready', severity: critical}
+            exp_annotations: {summary: API or a required dependency is unavailable}
+  - name: disconnected worker
+    interval: 1m
+    input_series:
+      - series: 'jntuh_worker_connected{job="worker", instance="worker:8001"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: WorkerUnavailable
+        exp_alerts:
+          - exp_labels: {job: worker, instance: 'worker:8001', severity: critical}
+            exp_annotations: {summary: Worker is disconnected or its event loop is stalled}
+  - name: low available host memory
+    interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{job="host", instance="host:9100"}'
+        values: '50x7'
+      - series: 'node_memory_MemTotal_bytes{job="host", instance="host:9100"}'
+        values: '1000x7'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: HostLowMemory
+        exp_alerts:
+          - exp_labels: {job: host, instance: 'host:9100', severity: warning}
+            exp_annotations: {summary: Host available memory below 10%}
+  - name: healthy worker excludes API placeholder gauges
+    interval: 1m
+    input_series:
+      - series: 'jntuh_worker_connected{job="api", instance="app:8000"}'
+        values: '0 0 0'
+      - series: 'jntuh_worker_heartbeat_timestamp_seconds{job="api", instance="app:8000"}'
+        values: '0 0 0'
+      - series: 'jntuh_worker_connected{job="worker", instance="worker:8001"}'
+        values: '1 1 1'
+      - series: 'jntuh_worker_heartbeat_timestamp_seconds{job="worker", instance="worker:8001"}'
+        values: '0 60 120'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: WorkerUnavailable
+        exp_alerts: []

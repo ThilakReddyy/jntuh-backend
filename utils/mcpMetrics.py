@@ -1,6 +1,6 @@
 """Prometheus instrumentation for MCP JSON-RPC traffic.
 
-The /metrics endpoint exposed by prometheus_fastapi_instrumentator already
+The /metrics endpoint and request telemetry middleware already
 captures HTTP requests at /mcp, but every MCP tool call is a single POST to
 /mcp — so without this layer we cannot distinguish getAcademicResult from
 getBacklogs, nor see per-tool latency or error rates.
@@ -17,6 +17,8 @@ from typing import Any, Awaitable, Callable
 from prometheus_client import Counter, Gauge, Histogram
 
 from utils.logger import logger
+from utils.observability import observed, set_operation_outcome
+from config.mcp import MCP_INCLUDE_OPERATIONS
 
 MCP_CALLS = Counter(
     "mcp_calls_total",
@@ -41,7 +43,9 @@ def _extract_tool_name(req: Any) -> str:
     """Return the tool name for a CallToolRequest, else ''."""
     params = getattr(req, "params", None)
     name = getattr(params, "name", None) if params is not None else None
-    return name if isinstance(name, str) else ""
+    if not isinstance(name, str):
+        return ""
+    return name if name in MCP_INCLUDE_OPERATIONS else "unknown"
 
 
 def _is_error_result(method: str, result: Any) -> bool:
@@ -71,6 +75,7 @@ def instrument_mcp(mcp: Any) -> None:
 def _wrap(
     handler: Callable[[Any], Awaitable[Any]], method: str
 ) -> Callable[[Any], Awaitable[Any]]:
+    @observed("mcp", method)
     async def wrapped(req: Any) -> Any:
         tool = _extract_tool_name(req)
         MCP_CALLS_IN_PROGRESS.labels(method=method, tool=tool).inc()
@@ -80,6 +85,7 @@ def _wrap(
             result = await handler(req)
             if _is_error_result(method, result):
                 status = "error"
+                set_operation_outcome("error")
             return result
         except Exception:
             status = "error"

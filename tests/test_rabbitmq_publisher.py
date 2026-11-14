@@ -4,6 +4,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 from config.redisConnection import redisConnection
 from messaging.publisher import publish_class_results_message
+from config.settings import CLASS_RESULTS_QUEUE_MAX_MESSAGES
 from service.getClassResults import fetch_class_results
 
 
@@ -21,7 +22,7 @@ class _ChannelContext:
 def test_publish_class_results_message_uses_dedicated_queue():
     exchange = SimpleNamespace(publish=AsyncMock())
     queue = SimpleNamespace(
-        declaration_result=SimpleNamespace(message_count=4),
+        declaration_result=SimpleNamespace(message_count=CLASS_RESULTS_QUEUE_MAX_MESSAGES - 1),
     )
     channel = SimpleNamespace(
         declare_queue=AsyncMock(return_value=queue),
@@ -41,10 +42,10 @@ def test_publish_class_results_message_uses_dedicated_queue():
     assert exchange.publish.await_args.kwargs["routing_key"] == "classresults"
 
 
-def test_class_results_message_is_not_published_when_queue_has_five_messages():
+def test_class_results_message_is_not_published_at_queue_capacity():
     exchange = SimpleNamespace(publish=AsyncMock())
     queue = SimpleNamespace(
-        declaration_result=SimpleNamespace(message_count=5),
+        declaration_result=SimpleNamespace(message_count=CLASS_RESULTS_QUEUE_MAX_MESSAGES),
     )
     channel = SimpleNamespace(
         declare_queue=AsyncMock(return_value=queue),

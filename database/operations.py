@@ -1,3 +1,5 @@
+from utils.observability import set_operation_outcome
+from utils.observability import observed
 import asyncio
 from datetime import datetime, timedelta
 import json
@@ -20,6 +22,7 @@ from utils.logger import database_logger
 _apns_device_registration_lock = asyncio.Lock()
 
 
+@observed("database", "save_details")
 async def save_details(details):
     try:
         await prismaConnection.prisma.student.upsert(
@@ -38,9 +41,11 @@ async def save_details(details):
         )
 
     except Exception as e:
+        set_operation_outcome("error")
         database_logger.error(f"Database error while inserting student data: {e}")
 
 
+@observed("database", "save_subject_and_marks")
 async def save_subject_and_marks(rollNumber, result, graceMarks=False):
     inserted_count = 0
     try:
@@ -117,12 +122,14 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
                 inserted_count += 1
 
     except Exception as e:
+        set_operation_outcome("error")
         database_logger.error(
             f"Database error while inserting student marks: {rollNumber}:{e}"
         )
     return inserted_count
 
 
+@observed("database", "save_exam_codes")
 async def save_exam_codes(results):
     try:
         exam_pairs = [
@@ -156,9 +163,11 @@ async def save_exam_codes(results):
             database_logger.info("No new records to insert")
         return new_exams
     except Exception as e:
+        set_operation_outcome("error")
         database_logger.error(f"Database error while inserting exam_codes: {e}")
 
 
+@observed("database", "get_exam_codes_from_database")
 async def get_exam_codes_from_database(roll_number, rcrv=False):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": roll_number}
@@ -176,6 +185,7 @@ async def get_exam_codes_from_database(roll_number, rcrv=False):
     return {mark.examCode for mark in marks}
 
 
+@observed("database", "save_to_database")
 async def save_to_database(results):
     details = results["details"]
     rollNo = details["rollNo"]
@@ -188,6 +198,7 @@ async def save_to_database(results):
     return inserted_count
 
 
+@observed("database", "get_details")
 async def get_details(roll_number: str):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": roll_number}
@@ -207,6 +218,7 @@ async def get_details(roll_number: str):
     return None
 
 
+@observed("database", "get_students_details")
 async def get_students_details(rollNumber: str, roll_number2: str):
     students = await prismaConnection.prisma.student.find_many(
         where={
@@ -245,6 +257,7 @@ async def get_students_details(rollNumber: str, roll_number2: str):
     return students
 
 
+@observed("database", "get_subscription_roll_number")
 async def get_subscription_roll_number(roll_number: str):
     record = await prismaConnection.prisma.anonpushsubscription.find_first(
         where={"rollNumber": roll_number},
@@ -253,11 +266,13 @@ async def get_subscription_roll_number(roll_number: str):
     return record
 
 
+@observed("database", "get_all_subscriptions")
 async def get_all_subscriptions():
     record = await prismaConnection.prisma.anonpushsubscription.find_many()
     return record
 
 
+@observed("database", "get_notifications")
 async def get_notifications(
     page: int, regulation: str = "", degree: str = "", year: str = "", title: str = ""
 ):
@@ -300,6 +315,7 @@ async def get_notifications(
     return results
 
 
+@observed("database", "get_exam_codes")
 async def get_exam_codes(degree, regulation):
     examCodesFromDb = await prismaConnection.prisma.examcodes.find_many(
         where={"degree": degree, "regulation": regulation},
@@ -318,6 +334,7 @@ async def get_exam_codes(degree, regulation):
     return examCodes
 
 
+@observed("database", "check_4_2_semester")
 async def check_4_2_semester(rollNumber: str):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": rollNumber},
@@ -332,6 +349,7 @@ async def check_4_2_semester(rollNumber: str):
     return None
 
 
+@observed("database", "get_subscription_by_anon_key")
 async def get_subscription_by_anon_key(anon_key: str):
     existing = await prismaConnection.prisma.anonpushsubscription.find_unique(
         where={"anonId": anon_key}
@@ -339,6 +357,7 @@ async def get_subscription_by_anon_key(anon_key: str):
     return existing
 
 
+@observed("database", "save_subscription_details")
 async def save_subscription_details(data: PushSub):
     subscription_str = json.dumps(data.subscription)
 
@@ -358,6 +377,7 @@ async def save_subscription_details(data: PushSub):
     )
 
 
+@observed("database", "save_result_device_subscription")
 async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload):
     return await prismaConnection.prisma.resultdevicesubscription.upsert(
         where={
@@ -383,6 +403,7 @@ async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload)
     )
 
 
+@observed("database", "get_result_device_subscriptions")
 async def get_result_device_subscriptions(
     roll_number: str, platform: str | None = None
 ):
@@ -392,6 +413,7 @@ async def get_result_device_subscriptions(
     return await prismaConnection.prisma.resultdevicesubscription.find_many(where=where)
 
 
+@observed("database", "delete_result_device_subscriptions")
 async def delete_result_device_subscriptions(ids: list[str]):
     if not ids:
         return None
@@ -400,12 +422,14 @@ async def delete_result_device_subscriptions(ids: list[str]):
     )
 
 
+@observed("database", "delete_result_device_subscriptions_for_device")
 async def delete_result_device_subscriptions_for_device(device_id: str):
     return await prismaConnection.prisma.resultdevicesubscription.delete_many(
         where={"deviceId": device_id}
     )
 
 
+@observed("database", "save_apns_device")
 async def save_apns_device(data: APNSDeviceRegistrationPayload):
     # APNs may deliver the same token callback more than once, and multiple app
     # sync triggers can consequently reach this endpoint together. Serialize
@@ -446,10 +470,12 @@ async def save_apns_device(data: APNSDeviceRegistrationPayload):
         raise RuntimeError("APNs device registration failed without a database result")
 
 
+@observed("database", "get_apns_devices")
 async def get_apns_devices():
     return await prismaConnection.prisma.pushdevice.find_many()
 
 
+@observed("database", "delete_apns_devices")
 async def delete_apns_devices(ids: list[str]):
     if not ids:
         return None
@@ -458,12 +484,14 @@ async def delete_apns_devices(ids: list[str]):
     )
 
 
+@observed("database", "delete_apns_device_for_device")
 async def delete_apns_device_for_device(device_id: str):
     return await prismaConnection.prisma.pushdevice.delete_many(
         where={"deviceId": device_id}
     )
 
 
+@observed("database", "save_grace_marks_proof")
 async def save_grace_marks_proof(
     roll_number: str,
     s3_key: str,
@@ -484,6 +512,7 @@ async def save_grace_marks_proof(
     )
 
 
+@observed("database", "get_latest_mark_for_subject")
 async def get_latest_mark_for_subject(student_id: str, subject_id: str):
     return await prismaConnection.prisma.mark.find_first(
         where={"studentId": student_id, "subjectId": subject_id},
@@ -491,6 +520,7 @@ async def get_latest_mark_for_subject(student_id: str, subject_id: str):
     )
 
 
+@observed("database", "upsert_grace_mark")
 async def upsert_grace_mark(
     *,
     student_id: str,
@@ -539,6 +569,7 @@ async def upsert_grace_mark(
     )
 
 
+@observed("database", "get_pending_grace_marks_proofs")
 async def get_pending_grace_marks_proofs():
     where: GraceMarksProofWhereInput = {"status": "pending"}
     return await prismaConnection.prisma.gracemarksproof.find_many(
@@ -548,6 +579,7 @@ async def get_pending_grace_marks_proofs():
     )
 
 
+@observed("database", "list_grace_marks_proofs")
 async def list_grace_marks_proofs(limit: int, offset: int, status: str | None):
     where: GraceMarksProofWhereInput = {}
     if status:
@@ -563,12 +595,14 @@ async def list_grace_marks_proofs(limit: int, offset: int, status: str | None):
     return rows, total
 
 
+@observed("database", "get_grace_marks_proof_by_id")
 async def get_grace_marks_proof_by_id(proof_id: str):
     return await prismaConnection.prisma.gracemarksproof.find_unique(
         where={"id": proof_id},
     )
 
 
+@observed("database", "update_grace_marks_proof_status")
 async def update_grace_marks_proof_status(proof_id: str, new_status: str):
     return await prismaConnection.prisma.gracemarksproof.update(
         where={"id": proof_id},
@@ -576,6 +610,7 @@ async def update_grace_marks_proof_status(proof_id: str, new_status: str):
     )
 
 
+@observed("database", "get_latest_notifications")
 async def get_latest_notifications():
     today = datetime.utcnow()
     one_weeks_ago = today - timedelta(days=7)

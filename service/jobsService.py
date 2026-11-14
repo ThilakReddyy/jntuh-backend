@@ -1,3 +1,4 @@
+from utils.observability import observed, set_operation_outcome
 import asyncio
 import json
 
@@ -73,6 +74,7 @@ async def fetch_jobs(
     }
 
 
+@observed("scheduler", "refresh_jobs")
 async def run_job_scrape() -> dict:
     """Run one isolated refresh, guarded across multiple app workers by Redis."""
 
@@ -87,12 +89,14 @@ async def run_job_scrape() -> dict:
             )
             acquired = bool(lock.acquire(blocking=False))
         if not acquired:
+            set_operation_outcome("skipped")
             logger.info("Job refresh skipped because another worker owns the lock")
             return {"status": "skipped", "reason": "already_running"}
 
         logger.info("Job refresh started")
         jobs = await scrape_all_jobs()
         if not jobs:
+            set_operation_outcome("empty")
             logger.warning("Job refresh returned no accepted jobs; preserving existing records")
             return {"status": "completed", "fetched": 0, "saved": 0, "deactivated": 0}
         saved = await save_jobs(jobs)
@@ -108,6 +112,7 @@ async def run_job_scrape() -> dict:
     except asyncio.CancelledError:
         raise
     except Exception as error:
+        set_operation_outcome("error")
         logger.error(f"Job refresh failed: {error}")
         return {"status": "failed", "error": str(error)}
     finally:

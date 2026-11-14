@@ -63,6 +63,6 @@ class ExemptingSlowAPIMiddleware(SlowAPIMiddleware):
     """SlowAPIMiddleware that short-circuits for `EXEMPT_PATH_PREFIXES`."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path.startswith(EXEMPT_PATH_PREFIXES):
+        if request.url.path in {"/metrics", "/health/live", "/health/ready", "/api/health"} or request.url.path.startswith(EXEMPT_PATH_PREFIXES):
             return await call_next(request)
         return await super().dispatch(request, call_next)

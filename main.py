@@ -1,13 +1,12 @@
 import aio_pika
 import asyncio
 import httpx
-import time
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
 from fastapi_mcp import FastApiMCP
-from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -37,11 +36,14 @@ from scrapers.resultNotificationScraper import refresh_notifications_periodicall
 from service.jobsService import refresh_jobs_periodically
 from utils.logger import logger
 from utils.mcpMetrics import instrument_mcp
+from utils.observability import MetricsEndpoint, RequestTelemetryMiddleware, setup_telemetry, shutdown_telemetry
+from utils.health import readiness
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manages the lifespan of the application, ensuring RabbitMQ connection is opened and closed properly."""
+    setup_telemetry(os.getenv("OTEL_SERVICE_NAME", "jntuh-api"))
     notification_refresh_task = None
     job_refresh_task = None
 
@@ -51,14 +53,15 @@ async def lifespan(app: FastAPI):
         await prismaConnection.connect()
         redisConnection.connect()
 
-        notification_refresh_task = asyncio.create_task(
-            refresh_notifications_periodically(),
-            name="notification-refresh-scheduler",
-        )
-        job_refresh_task = asyncio.create_task(
-            refresh_jobs_periodically(),
-            name="job-refresh-scheduler",
-        )
+        if os.getenv("BACKGROUND_REFRESH_ENABLED", "true").lower() == "true":
+            notification_refresh_task = asyncio.create_task(
+                refresh_notifications_periodically(),
+                name="notification-refresh-scheduler",
+            )
+            job_refresh_task = asyncio.create_task(
+                refresh_jobs_periodically(),
+                name="job-refresh-scheduler",
+            )
 
         yield
 
@@ -85,8 +88,9 @@ async def lifespan(app: FastAPI):
         await prismaConnection.disconnect()
 
         # Close Redis
-        if hasattr(app.state, "redis"):
-            await app.state.redis.close()
+        redisConnection.disconnect()
+        await mcp_http_client.aclose()
+        shutdown_telemetry()
 
 
 def custom_openapi():
@@ -145,25 +149,20 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Initialize Prometheus instrumentator
-instrumentator = Instrumentator()
-
-# Automatically instrument the FastAPI app to expose Prometheus metrics
-# Exposing metrics at /metrics
-instrumentator.instrument(app).expose(app, include_in_schema=False)
+# Exact route avoids /metrics -> /metrics/ redirects during scrapes.
+from starlette.routing import Route
+app.router.routes.append(Route("/metrics", endpoint=MetricsEndpoint()))
+app.add_middleware(RequestTelemetryMiddleware)
 
 
-@app.middleware("http")
-async def log_request(request, call_next):
-    start = time.perf_counter()
-    response = await call_next(request)
-    duration = (time.perf_counter() - start) * 1000
-    logger.info(
-        f"{request.client.host} {request.method} {request.url.path} "
-        f"→ {response.status_code} [{duration:.2f} ms]"
-    )
+@app.get("/health/live", include_in_schema=False)
+async def liveness():
+    return {"status": "ok"}
 
-    return response
+
+@app.get("/health/ready", include_in_schema=False)
+async def ready():
+    return await readiness(app)
 
 
 routes = create_routes(app)

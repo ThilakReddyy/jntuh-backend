@@ -1,6 +1,7 @@
 import redis
 from config.settings import REDIS_URL
 from utils.logger import redis_logger
+from utils.observability import CACHE, operation
 
 
 class RedisConnection:
@@ -10,7 +11,7 @@ class RedisConnection:
 
     def connect(self):
         if self.redis_url:
-            self.client = redis.Redis.from_url(self.redis_url)
+            self.client = redis.Redis.from_url(self.redis_url, socket_connect_timeout=3, socket_timeout=3)
             try:
                 self.client.ping()
                 redis_logger.info("Redis Connected!!")
@@ -27,9 +28,14 @@ redisConnection = RedisConnection()
 
 
 def getRedisKeyValue(key):
-    if redisConnection.client:
-        cached_data = redisConnection.client.get(key)
-        if cached_data:
-            redis_logger.info(f"Cache hit for {key}")
-            return cached_data  # pyright: ignore
-    return None
+    if not redisConnection.client:
+        CACHE.labels("unavailable").inc()
+        return None
+    with operation("redis", "cache_get"):
+        try:
+            cached_data = redisConnection.client.get(key)
+        except Exception:
+            CACHE.labels("error").inc()
+            raise
+        CACHE.labels("hit" if cached_data is not None else "miss").inc()
+        return cached_data

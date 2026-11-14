@@ -1,0 +1,73 @@
+groups:
+  - name: jntuh
+    rules:
+      - alert: ScrapeTargetDown
+        expr: up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: 'Metrics unavailable for {{ $labels.job }}'
+      - alert: APIReadinessFailed
+        expr: probe_success{job="readiness"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: API or a required dependency is unavailable}
+      - alert: APIHighErrorRate
+        expr: sum(rate(jntuh_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(jntuh_http_requests_total[5m])), 0.001) > 0.05 and sum(increase(jntuh_http_requests_total[5m])) > 20
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: More than 5% of API requests are failing}
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(jntuh_http_request_duration_seconds_bucket[5m]))) > 5
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: API p95 latency exceeds 5 seconds}
+      - alert: WorkerUnavailable
+        expr: jntuh_worker_connected{job="worker"} == 0 or time() - jntuh_worker_heartbeat_timestamp_seconds{job="worker"} > 30
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: Worker is disconnected or its event loop is stalled}
+      - alert: QueueBacklog
+        expr: rabbitmq_queue_messages_ready > 50
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: RabbitMQ queue backlog is sustained}
+      - alert: QueueHasNoConsumer
+        expr: rabbitmq_queue_consumers == 0 and rabbitmq_queue_messages > 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: Queued messages have no consumer}
+      - alert: HostHighCPU
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: Host CPU exceeds 85%}
+      - alert: HostLowMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: Host available memory below 10%}
+      - alert: HostLowDisk
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes < 0.15 and node_filesystem_readonly == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: Filesystem has less than 15% free space}
+      - alert: ContainerOOM
+        expr: increase(container_oom_events_total[5m]) > 0
+        labels: {severity: critical}
+        annotations: {summary: Container experienced an OOM event}
+      - alert: RedisUnavailable
+        expr: redis_up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: Redis exporter cannot connect to Redis}
+      - alert: PostgresUnavailable
+        expr: pg_up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: PostgreSQL exporter cannot connect to PostgreSQL}
+      - alert: ApplicationOperationErrors
+        expr: sum by (component, operation) (increase(jntuh_operations_total{outcome="error"}[5m])) > 5
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: Application operations are repeatedly failing}

@@ -1,3 +1,4 @@
+from utils.observability import observed, set_operation_outcome
 import asyncio
 import json
 import requests
@@ -210,11 +211,13 @@ def get_exam_codes(results):
     return results
 
 
+@observed("scheduler", "refresh_notifications")
 async def refresh_notifications():
     """Fetches, parses, and caches JNTUH notifications."""
     try:
         tables = fetch_results()
         if not tables:
+            set_operation_outcome("unavailable")
             return None  # Exit if fetching fails
 
         results = parse_results(tables)
@@ -234,6 +237,7 @@ async def refresh_notifications():
             await broadcast_result_notifications(new_exams)
 
     except Exception as e:
+        set_operation_outcome("error")
         logger.info(f"Error while fetching notifications:{e}")
 
 

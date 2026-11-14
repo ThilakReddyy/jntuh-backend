@@ -203,13 +203,13 @@ The public `/api/getCMM` route is separate: it renders a clearly watermarked sam
 
 ## Observability
 
-FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional instrumentation. `prometheus.yml` also scrapes RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Application and component loggers write to local files/standard output and push to Loki, and Grafana consumes the monitoring stack.
+FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional instrumentation. `prometheus.yml` also scrapes RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Application/component loggers write structured stdout collected by Alloy into Loki. OpenTelemetry spans flow through Alloy to Tempo, including queue trace propagation. Grafana provisions metrics, logs, traces and seven dashboards; see [Observability](OBSERVABILITY.md).
 
 ## Deployment topology
 
 The production workflow runs on pushes to `main`, connects to EC2 over SSH, updates the checkout, rebuilds the application service, and restarts it with Docker Compose. Cloudflare and a reverse proxy sit in front of the application. The image runs `prisma db push`, starts `main2.py` in the background, and runs Uvicorn in the foreground.
 
-The committed Compose configuration defines PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, Grafana, and Redis/PostgreSQL exporters. At the time of this document, its application service is commented out even though the deployment workflow expects an `app` service; an S3-compatible endpoint may be configured, but no MinIO service is present in the committed Compose file.
+Compose defines separate API/worker containers, schema sync, PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, Tempo, Alloy, Grafana, node/cAdvisor/blackbox and datastore exporters. The deployment workflow updates the entire stack and verifies health and telemetry. S3 is configured separately; no MinIO service is included.
 
 ## Architectural constraints and invariants
 

@@ -1,130 +1,232 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+x-app: &app
+  build: .
+  image: jntuh-backend:${APP_VERSION:-local}
+  restart: unless-stopped
+  init: true
+  env_file: .env
+  environment: &app-env
+    DATABASE_URL: postgresql://postgres:password@db:5432/jntuh
+    RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
+    REDIS_URL: redis://redis:6379/0
+    QUEUE_NAME: default_queue
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+    OTEL_EXPORTER_OTLP_INSECURE: "true"
+    OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1.0}
+    APP_VERSION: ${APP_VERSION:-development}
+    PYTHONUNBUFFERED: "1"
+  logging: *logging
+
 services:
   db:
     image: postgres:16
-    container_name: postgresdb
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: jntuh
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jntuh"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *logging
+
   redis:
-    image: redis:alpine
-    container_name: redisjntuh
-    command: >
-      redis-server
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
-    deploy:
-      resources:
-        limits:
-          memory: 600m
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
+    mem_limit: 600m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *logging
 
   rabbitmq:
     image: rabbitmq:3.13-management
-    container_name: rabbitmq
-    restart: always
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
-      RABBITMQ_PROMETHEUS: "true"
     ports:
-      - "5672:5672"
-      - "15672:15672"
-      - "15692:15692" # Expose Prometheus metrics endpoint
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 20s
-      timeout: 10s
-      retries: 5
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090" # Expose Prometheus on port 9090
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount Prometheus config file
-      - prometheus_data:/prometheus # Mount a persistent volume for Prometheus data
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./observability/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./observability/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["prisma", "db", "push", "--skip-generate"]
+    depends_on:
+      db: {condition: service_healthy}
 
   app:
-    build: .
-    container_name: fastapiapp
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    env_file:
-      - .env
+    <<: *app
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgresdb:5432/jntuh
-      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
-      REDIS_URL: redis://redisjntuh:6379/0
-      QUEUE_NAME: default_queue
+      <<: *app-env
+      OTEL_SERVICE_NAME: jntuh-api
+    ports: ["${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=6)"]
+      interval: 15s
+      timeout: 7s
+      retries: 5
+      start_period: 30s
 
-    ports:
-      - "8000:8000"
+  worker:
+    <<: *app
+    command: ["python", "main2.py"]
+    environment:
+      <<: *app-env
+      OTEL_SERVICE_NAME: jntuh-worker
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/worker_health.py"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=5GB
+      - --enable-feature=exemplar-storage
     volumes:
-      - .:/app
-
-    entrypoint: ["/app/entrypoint.sh"]
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    logging: *logging
 
   loki:
-    image: grafana/loki:latest
-    container_name: loki
-    ports:
-      - "3100:3100"
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yml"]
     volumes:
-      - loki_data:/loki # Persistent storage for Loki logs
+      - ./observability/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    logging: *logging
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/config.yml"]
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo/config.yml:ro
+      - tempo_data:/var/tempo
+    logging: *logging
+
+  alloy:
+    image: grafana/alloy:v1.8.3
+    restart: unless-stopped
+    user: "0"
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    environment:
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-jntuh-backend}
+    volumes:
+      - ./observability/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on: [loki, tempo]
+    logging: *logging
 
   grafana:
-    image: grafana/grafana-oss:latest
-    container_name: grafana
+    image: grafana/grafana:11.6.0
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    ports: ["${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"]
     environment:
-      - GF_SECURITY_ADMIN_USER=adminjntuh
-      - GF_SECURITY_ADMIN_PASSWORD=getflat100
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 5s
     volumes:
       - grafana_data:/var/lib/grafana
-    depends_on:
-      - loki
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus, loki, tempo]
+    logging: *logging
 
-  # 🔹 Redis Exporter
   redis_exporter:
-    image: oliver006/redis_exporter
-    container_name: redis_exporter
-    command: --redis.addr=redis://redisjntuh:6379
-    ports:
-      - "9121:9121"
-    depends_on:
-      - redis
+    image: oliver006/redis_exporter:v1.69.0
+    restart: unless-stopped
+    command: ["--redis.addr=redis://redis:6379"]
+    depends_on: [redis]
+    logging: *logging
 
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter
-    container_name: postgres_exporter
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:password@postgresdb:5432/jntuh?sslmode=disable"
-    ports:
-      - "9187:9187"
-    depends_on:
-      - db
+      DATA_SOURCE_NAME: postgresql://postgres:password@db:5432/jntuh?sslmode=disable
+    depends_on: [db]
+    logging: *logging
+
+  node_exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    pid: host
+    network_mode: host
+    command: ["--path.rootfs=/host", "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($|/)"]
+    volumes: ["/:/host:ro,rslave"]
+    logging: *logging
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    restart: unless-stopped
+    privileged: true
+    cgroup: host
+    command: ["--docker_only=true", "--housekeeping_interval=10s", "--store_container_labels=false", "--whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    logging: *logging
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.26.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/config.yml"]
+    volumes: ["./observability/blackbox.yml:/etc/blackbox/config.yml:ro"]
+    logging: *logging
 
 volumes:
   postgres_data:
+  rabbitmq_data:
   prometheus_data:
-  loki_data: # Added persistent volume for Loki
+  loki_data:
+  tempo_data:
+  alloy_data:
   grafana_data:
