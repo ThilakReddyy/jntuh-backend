@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 import logging
+import os
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -14,6 +15,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.trace import SpanKind, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from prometheus_client import Counter, Gauge, Histogram
@@ -63,7 +65,12 @@ def configure_telemetry(role):
             "service.namespace": "jntuh",
             "deployment.environment": settings.OTEL_ENVIRONMENT,
         })
-        _trace_provider = TracerProvider(resource=resource)
+        # Preserve explicit standard OTel sampler settings. Otherwise sample
+        # roots at 10% and honor the parent decision across API/worker processes.
+        sampler = None if os.getenv("OTEL_TRACES_SAMPLER") else ParentBased(
+            TraceIdRatioBased(settings.OTEL_TRACE_SAMPLE_RATIO)
+        )
+        _trace_provider = TracerProvider(resource=resource, sampler=sampler)
         _trace_provider.add_span_processor(BatchSpanProcessor(
             OTLPSpanExporter(endpoint=settings.OTEL_TRACES_ENDPOINT, timeout=3),
             max_queue_size=settings.OTEL_SPAN_QUEUE_SIZE,
@@ -118,9 +125,10 @@ def operation(name, *, kind=SpanKind.INTERNAL, context=None, attributes=None):
 def observe(name, *, false_is_error=False, none_is_error=False):
     """Observe async boundaries without recording arguments or response data."""
     def decorate(function):
+        attributes = _function_attributes(function)
         @wraps(function)
         async def wrapped(*args, **kwargs):
-            with operation(name, attributes=_function_attributes(function)) as span:
+            with operation(name, attributes=attributes) as span:
                 result = await function(*args, **kwargs)
                 if ((false_is_error and result is False)
                         or (none_is_error and result is None)
@@ -179,7 +187,8 @@ def _function_call(name, attributes, log_completion):
         settings.OTEL_ENABLED and settings.OTEL_FUNCTION_TRACING_ENABLED
         and trace.get_current_span().is_recording()
     )
-    start = time.perf_counter() if log_completion else None
+    log_success = log_completion and settings.LOG_OPERATION_COMPLETIONS
+    start = time.perf_counter() if log_success else None
     span = tracer.start_span(name, attributes=attributes) if enabled else None
     outcome = {"failed": False, "logged": False, "level": logging.INFO}
     token = _function_outcome.set(outcome)
@@ -208,13 +217,14 @@ def _function_call(name, attributes, log_completion):
                     log_failure(name, error, level=level)
                 raise
             else:
-                if log_completion and not outcome["logged"]:
+                if log_completion and not outcome["logged"] and (log_success or outcome["failed"]):
                     logger.log(outcome["level"],
                                "Operation completed with unsuccessful outcome" if outcome["failed"] else "Operation completed",
                                extra={
                                    "operation": name,
                                    "outcome": "unsuccessful" if outcome["failed"] else "success",
-                                   "duration_ms": round((time.perf_counter() - start) * 1000, 2),
+                                   **({"duration_ms": round((time.perf_counter() - start) * 1000, 2)}
+                                      if start is not None else {}),
                                })
     finally:
         _function_outcome.reset(token)
@@ -254,12 +264,28 @@ def trace_function(function=None, *, log_completion=False):
         return partial(trace_function, log_completion=log_completion)
     if getattr(function, "__jntuh_traced__", False):
         return function
+    # Decide once at import time. In boundary mode tiny helpers, validators,
+    # per-row projections and generator steps incur no wrapper cost at all.
+    boundary = log_completion or (
+        function.__module__ in {
+            "api.routes", "database.operations", "database.jobOperations", "utils.s3",
+        } and not function.__name__.startswith("_")
+    ) or (
+        function.__module__ in {"chatbot.provider", "chatbot.tools"}
+        and function.__name__ in {"complete", "execute"}
+    )
+    tracing_enabled = settings.OTEL_ENABLED and settings.OTEL_FUNCTION_TRACING_ENABLED
+    detailed = settings.OTEL_FUNCTION_TRACING_MODE == "full"
+    if not log_completion and (not tracing_enabled or (not detailed and not boundary)):
+        return function
     name = f"{function.__module__}.{function.__qualname__}".replace(".<locals>.", ".")
     attributes = _function_attributes(function)
 
     if inspect.iscoroutinefunction(function):
         @wraps(function)
         async def wrapped(*args, **kwargs):
+            if not log_completion and not trace.get_current_span().is_recording():
+                return await function(*args, **kwargs)
             with _function_call(name, attributes, log_completion):
                 result = await function(*args, **kwargs)
                 if log_completion:
@@ -268,10 +294,14 @@ def trace_function(function=None, *, log_completion=False):
     elif inspect.isgeneratorfunction(function):
         @wraps(function)
         def wrapped(*args, **kwargs):
+            if not trace.get_current_span().is_recording():
+                return (yield from function(*args, **kwargs))
             return (yield from _TracedIterator(function(*args, **kwargs), name, attributes))
     else:
         @wraps(function)
         def wrapped(*args, **kwargs):
+            if not log_completion and not trace.get_current_span().is_recording():
+                return function(*args, **kwargs)
             with _function_call(name, attributes, log_completion):
                 result = function(*args, **kwargs)
                 if log_completion:

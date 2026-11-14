@@ -42,7 +42,10 @@ for every Compose service, including PostgreSQL, Redis and RabbitMQ. Use the
 Containers dashboard's service selector for the remaining monitoring/exporter
 containers, and the Logs and Traces dashboard to follow an `X-Trace-Id`.
 
-Application/component files:
+Docker stdout and Alloy/Loki are the default log outputs. Log formatting and
+output run in a background thread with a bounded queue. If
+`application_log_records_dropped_total` increases, the output queue is saturated.
+Application/component files are optional (`LOG_FILE_ENABLED=true`):
 
 - `app-<pid>.log`
 - `rabbitmq-<pid>.log`
@@ -54,8 +57,14 @@ Application/component files:
 Each local file rotates at 10 MiB with three backups. Logs flow to Loki through
 Alloy's Docker log collector. Use Prometheus/Grafana to correlate API
 latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. If Loki logs
-stop, inspect Alloy and its Docker socket access; local files/stdout continue
+stop, inspect Alloy and its Docker socket access; stdout and any enabled local files continue
 independently of Loki availability.
+
+If tracing adds latency, keep `OTEL_FUNCTION_TRACING_MODE=boundary` (the default)
+and use 10% root trace sampling. Set `full` temporarily for debugging, then restart
+the application to restore boundary mode. Keep routine function completion logs
+off (`LOG_OPERATION_COMPLETIONS=false`). Request, warning/error and required
+business logs remain enabled, as do all Prometheus metrics.
 
 ## Result request returns 202 indefinitely
 

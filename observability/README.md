@@ -78,11 +78,18 @@ with `job="docker"`, `compose_project`, `compose_service`, and `container`, and
 forwards the original lines to Loki once. Trace IDs and request IDs remain JSON
 fields rather than stream labels. Infrastructure logs use their original format.
 
-Application logs also use rotating local files `app-<pid>.log` and component
-files such as `database-<pid>.log`: 10 MiB each with three backups. API and worker
-use separate files to avoid competing rotations. Old PID files can be removed
-after the process exits; Docker/Loki retention continues to use existing settings.
-`LOG_DIRECTORY` changes the local directory; `LOG_LEVEL` defaults to `INFO`.
+Application logs use a bounded background queue before formatting/output, so
+stdout and optional disk writes do not run on the request thread. Correlation
+IDs are captured before queuing. `LOG_QUEUE_SIZE` defaults to 4,096 records;
+overflow drops records instead of blocking requests and increments
+`application_log_records_dropped_total`. The queue drains on normal process exit.
+
+Docker stdout and Alloy/Loki are the default outputs. Set `LOG_FILE_ENABLED=true`
+to additionally write `app-<pid>.log` and component files such as
+`database-<pid>.log`: 10 MiB each with three backups, also in the background.
+API and worker use separate files to avoid competing rotations. Old PID files
+can be removed after the process exits. `LOG_DIRECTORY` changes the local
+directory; `LOG_LEVEL` defaults to `INFO`.
 
 API responses include `X-Request-Id`, and `X-Trace-Id` when tracing is configured.
 The outer request span observes middleware rejections, failures, and complete
@@ -116,10 +123,14 @@ for 72 hours in `tempo_data`. Alloy persists collection state in `alloy_data`.
 | --- | --- |
 | `OTEL_ENABLED` | `true`; set `false` to disable trace export. |
 | `OTEL_FUNCTION_TRACING_ENABLED` | `true`; adds nested application function spans to sampled request/job traces. Set `false` to retain the existing HTTP, queue and operation spans with less trace volume. |
+| `OTEL_FUNCTION_TRACING_MODE` | `boundary`; traces route/service/database/storage boundaries. Set `full` temporarily for every decorated helper, including per-subject and parser calls. Restart the app after changing this setting. |
 | `OTEL_BSP_MAX_QUEUE_SIZE` / `OTEL_BSP_MAX_EXPORT_BATCH_SIZE` / `OTEL_BSP_SCHEDULE_DELAY` | `16384` spans / `1024` spans / `1000` milliseconds; export buffer and batch cadence sized for function tracing. |
 | `OTEL_SERVICE_NAME` | `jntuh-backend`; trace resources append `-api` or `-worker`. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Empty; no remote trace export. Compose supplies `http://tempo:4318/v1/traces`. |
-| `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG` | SDK defaults; the example environment uses `parentbased_traceidratio` / `1.0`. |
+| `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG` | Parent-based 10% sampling for new root traces; explicit standard OTel sampler settings take precedence. Parent decisions propagate through RabbitMQ. |
+| `LOG_FILE_ENABLED` | `false`; Docker stdout/Alloy/Loki remain active. |
+| `LOG_OPERATION_COMPLETIONS` | `false`; disables routine function completion INFO logs. Warnings, errors, request logs and existing business/lifecycle logs remain active. |
+| `LOG_QUEUE_SIZE` | `4096` records per process; bounded asynchronous log output. |
 | `WORKER_METRICS_ENABLED` | `false`; Compose enables it. |
 | `WORKER_METRICS_HOST` / `WORKER_METRICS_PORT` | `0.0.0.0` / `8001`; internal worker `/metrics`. |
 
@@ -131,7 +142,7 @@ plugins are enabled together by the additive mounted plugin list.
 
 ## Function tracing and application logs
 
-`@trace_function` traces synchronous functions, asynchronous functions, methods,
+`@trace_function` supports synchronous functions, asynchronous functions, methods,
 properties, route/dependency handlers, and synchronous generator execution across
 `api`, `service`, `database`, `scrapers`, `subscriptions`, `messaging`, `chatbot`,
 `utils` and `data`. Existing `@observe` functions retain their operation names and
@@ -139,8 +150,12 @@ include code metadata, without an additional duplicate function span. Span names
 identify the module and qualified function, for example
 `service.getResultsService.fetch_results`. Attributes identify the function,
 module and source line; arguments, return values and raw exception messages are
-never attached. Generators attach tracing context only while executing so a
-yielded value does not leave a child span active in the caller.
+never attached. By default, only application boundaries are wrapped; tiny helpers,
+schema validators, per-row/per-grade computations and generator steps remain
+ordinary function calls with no tracing wrapper. `OTEL_FUNCTION_TRACING_MODE=full`
+enables their decorators when detailed debugging is needed. In that mode,
+generators attach tracing context only while executing so a yielded value does
+not leave a child span active in the caller.
 
 These spans join an active sampled request or job. Calls during import/startup
 do not create separate root traces. Telemetry/logging internals and existing
@@ -149,9 +164,9 @@ remain process boundaries; individual queue messages and scheduled runs already
 have operation spans. The existing sampler controls how many request/job traces
 are exported. The function-tracing switch controls the extra per-function spans.
 
-Public service/delivery boundaries log completion with operation, outcome and
-duration. Helpers and per-row/per-grade computations use spans rather than
-routine INFO messages. Caught database, queue, notification, subscription and
+Set `LOG_OPERATION_COMPLETIONS=true` to log routine service/delivery completions
+with operation, outcome and duration; this extra INFO volume is off by default.
+Caught database, queue, notification, subscription and
 chatbot failures log ERROR with the operation and exception type, and mark the
 active span as failed. Degraded upstreams, retry attempts, unavailable tools,
 queue backpressure and HTTP 4xx responses log WARNING. Successful requests and
@@ -161,6 +176,14 @@ credentials, device tokens and payloads; no new business validation is added.
 When a student's result save inserts zero new marks, its INFO message is
 `No new records to insert in <rollNo>`. Shared exam-notification updates have no
 student roll number and use `No new exam-code records to insert` instead.
+
+The defaults prioritize result-serving latency. For a short diagnostic session,
+set `OTEL_FUNCTION_TRACING_MODE=full` and, if needed,
+`OTEL_TRACES_SAMPLER=parentbased_traceidratio` plus
+`OTEL_TRACES_SAMPLER_ARG=1.0`; restart the app. Return to boundary mode and a
+sample ratio of `0.1` afterward. All-request/per-function tracing can generate
+thousands of spans per scrape. Prometheus request/error/operation metrics remain
+unsampled regardless of the tracing sampler.
 
 ## Configuration references
 

@@ -214,12 +214,13 @@ API/worker, PostgreSQL, Redis, RabbitMQ, and logs/traces. See
 [`observability/README.md`](observability/README.md) for configuration and the
 one-time monitoring startup required by the unchanged app-only deploy workflow.
 
-Application functions also use nested spans identified by module and qualified
-function name. Sync/async functions and generator execution join the active
-sampled request/job; the function-tracing switch can disable this detail while
-retaining operation spans. Service completions and important failures emit
-structured INFO/WARNING/ERROR logs with operation names and safe error types.
-No function arguments or response bodies are captured in these spans.
+Nested spans at application boundaries identify the module and qualified function.
+The default samples 10% of root traces while honoring parent decisions. Tiny
+helpers, validators and per-row/per-grade computations remain ordinary calls;
+full function tracing is opt-in for debugging. Logs use bounded background
+output, with local files and routine function completion INFO messages opt-in.
+Request, warning/error and business logs remain active. No function arguments or
+response bodies are captured, and Prometheus metrics remain unsampled.
 
 ## Deployment topology
 
