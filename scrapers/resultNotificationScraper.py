@@ -12,7 +12,6 @@ from database.operations import save_exam_codes
 from subscriptions.mobile_notification import broadcast_result_notifications
 from utils.helpers import send_telegram_notification
 from utils.logger import logger
-from utils.telemetry import log_failure, observe, trace_function
 
 
 # Month mapping dictionary
@@ -32,7 +31,6 @@ MONTH_MAP = {
 }
 
 
-@trace_function
 def categorize_degree(index):
     if index == 0:
         return "btech"
@@ -49,7 +47,6 @@ def categorize_degree(index):
     return ""
 
 
-@trace_function
 def categorize_semester_code(title):
     # Categorize the exam code based on the result text
     if " I Year I " in title or " I B.Tech Year I Semester" in title:
@@ -72,7 +69,6 @@ def categorize_semester_code(title):
         return None
 
 
-@trace_function
 def categorize_masters_exam_code(title):
     # Categorize the masters exam code based on the result text
     if " I Semester" in title:
@@ -87,7 +83,6 @@ def categorize_masters_exam_code(title):
         return None
 
 
-@trace_function
 def fetch_results():
     """Fetch and parse JNTUH results page."""
     url = "http://results.jntuh.ac.in/jsp/home.jsp"
@@ -101,11 +96,10 @@ def fetch_results():
         return soup.find_all("table")[:8]  # Get only the first 8 tables
 
     except requests.RequestException as e:
-        log_failure("notifications.fetch_upstream", e)
+        logger.info(f"Error fetching results: {e}")
         return None
 
 
-@trace_function
 def parse_results(tables):
     """Extracts notifications from parsed HTML tables."""
     results = []
@@ -142,7 +136,6 @@ def parse_results(tables):
     return results
 
 
-@trace_function
 def extract_exam_code(url):
     # Extract the exam code from the result link
     try:
@@ -156,7 +149,6 @@ def extract_exam_code(url):
         return ""
 
 
-@trace_function
 def format_dates(results):
     """Converts date strings into a formatted YYYY-MM-DD format."""
     formatted_results = []
@@ -188,12 +180,10 @@ def format_dates(results):
     return sorted(formatted_results, key=lambda x: x["releaseDate"], reverse=True)
 
 
-@trace_function
 def isrcrv(title):
     return "RCRV" in title or "RC/RV" in title
 
 
-@trace_function
 def get_exam_codes(results):
     for result in results:
         result["regulation"] = None
@@ -220,13 +210,11 @@ def get_exam_codes(results):
     return results
 
 
-@observe("scheduler.refresh_notifications")
 async def refresh_notifications():
     """Fetches, parses, and caches JNTUH notifications."""
     try:
         tables = fetch_results()
         if not tables:
-            logger.warning("Notification refresh skipped: upstream returned no tables")
             return None  # Exit if fetching fails
 
         results = parse_results(tables)
@@ -242,12 +230,11 @@ async def refresh_notifications():
 
         new_exams = await save_exam_codes(results)
         if new_exams:
-            logger.info("New exam notifications discovered", extra={"count": len(new_exams)})
             send_telegram_notification(new_exams)
             await broadcast_result_notifications(new_exams)
 
     except Exception as e:
-        log_failure("notifications.refresh", e)
+        logger.info(f"Error while fetching notifications:{e}")
 
 
 async def refresh_notifications_periodically(interval_seconds=60):

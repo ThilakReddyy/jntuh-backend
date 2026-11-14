@@ -21,11 +21,8 @@ from subscriptions.send_notification import send_push_notification_to_particular
 from subscriptions.mobile_notification import notify_student_result_updated
 from utils.logger import rabbitmq_logger, logger, scraping_logger
 from utils.caching import invalidate_all_cache
-from opentelemetry.trace import StatusCode
-from utils.telemetry import consume_operation, log_failure, observe, trace_function
 
 
-@trace_function
 def get_class_prefixes(roll_number: str) -> tuple[str, str]:
     """Return the requested and paired class prefixes."""
     class_prefix = roll_number[:8]
@@ -51,7 +48,6 @@ def get_class_prefixes(roll_number: str) -> tuple[str, str]:
     return class_prefix, paired_prefix
 
 
-@trace_function
 def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
     """Yield every roll number in the requested and paired class cohorts."""
     class_prefixes = get_class_prefixes(roll_number)
@@ -65,7 +61,6 @@ def iter_class_roll_numbers(roll_number: str) -> Iterator[str]:
                 yield f"{prefix}{letter}{number}"
 
 
-@observe("results.process_class")
 async def process_class_results_message(message_body: str) -> None:
     """Scrape a class unless either paired cohort was processed in the last day."""
     rabbitmq_logger.info(f"Processing class results message: {message_body}")
@@ -106,7 +101,6 @@ async def process_class_results_message(message_body: str) -> None:
 
 
 # Define a function to process messages
-@observe("results.process_student", false_is_error=True)
 async def process_message(message_body: str) -> bool:
     try:
         """
@@ -148,11 +142,13 @@ async def process_message(message_body: str) -> bool:
             try:
                 await notify_student_result_updated(message_body)
             except Exception as error:
-                log_failure("notifications.student_result", error)
+                logger.error(
+                    f"Mobile student result notification failed for {message_body}: {error}"
+                )
         return True
 
     except Exception as e:
-        log_failure("results.process_student", e, event_logger=scraping_logger)
+        scraping_logger.error(f"Error while scarping results: {e}")
         return False
 
     """Consume messages from RabbitMQ and pass them to the processing function."""
@@ -162,25 +158,26 @@ async def _consume_default_queue(queue) -> None:
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
             try:
-                with consume_operation(QUEUE_NAME, message.headers) as span:
-                    async with message.process():
-                        body = message.body.decode()
-                        # Preserve existing removal and acknowledgement behavior.
-                        if redisConnection.client:
-                            redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
-                            rabbitmq_logger.info(
-                                f"Removed roll number {body} from Redis."
-                            )
-                        else:
-                            rabbitmq_logger.warning("Redis is not found")
+                async with message.process():
+                    body = message.body.decode()
+                    # Remove the roll number from Redis after successful processing
+                    if redisConnection.client:
+                        redisConnection.client.srem(RABBITMQ_ROLL_NUMBERS, body)
+                        rabbitmq_logger.info(
+                            f"Removed roll number {body} from Redis."
+                        )
+                    else:
+                        rabbitmq_logger.warning("Redis is not found")
 
-                        if body == NOTIFICATIONS_REDIS_KEY:
-                            await refresh_notifications()
-                        elif not await process_message(body):
-                            span.set_status(StatusCode.ERROR)
+                    if body == NOTIFICATIONS_REDIS_KEY:
+                        await refresh_notifications()
+                    else:
+                        await process_message(body)
 
             except Exception as error:
-                log_failure("rabbitmq.consume_default", error, event_logger=rabbitmq_logger)
+                rabbitmq_logger.error(
+                    f"Error processing message: {error},{message.body}"
+                )
                 if not message.processed:
                     await message.reject(requeue=False)
 
@@ -189,11 +186,12 @@ async def _consume_class_results_queue(queue) -> None:
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
             try:
-                with consume_operation(CLASS_RESULTS_QUEUE_NAME, message.headers):
-                    async with message.process():
-                        await process_class_results_message(message.body.decode())
+                async with message.process():
+                    await process_class_results_message(message.body.decode())
             except Exception as error:
-                log_failure("rabbitmq.consume_class", error, event_logger=rabbitmq_logger)
+                rabbitmq_logger.error(
+                    f"Error processing class results message: {error},{message.body}"
+                )
                 if not message.processed:
                     await message.reject(requeue=False)
 
@@ -238,6 +236,6 @@ async def consume_messages():
     except asyncio.CancelledError:
         rabbitmq_logger.info("Message consumption was cancelled.")
     except Exception as e:
-        log_failure("rabbitmq.consume", e, event_logger=rabbitmq_logger)
+        rabbitmq_logger.error(f"An error occurred: {e}")
     finally:
         rabbitmq_logger.info("Shutting down gracefully...")

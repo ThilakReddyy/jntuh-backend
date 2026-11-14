@@ -7,11 +7,8 @@ from database.models import studentCredits, studentDetailsModel
 from database.operations import get_details
 from messaging.publisher import publish_message
 from utils.helpers import get_credit_regulation_details, isbpharmacyr22
-from utils.caching import get_cached_result
-from utils.telemetry import trace_function
 
 
-@trace_function(log_completion=True)
 async def fetch_required_credits(app: FastAPI, roll_number: str):
     """Compute credits earned vs the regulation's required-credits table.
 
@@ -30,7 +27,7 @@ async def fetch_required_credits(app: FastAPI, roll_number: str):
     roll_credits_checker_key = f"{roll_number}RequiredCredits"
 
     if redisConnection.client:
-        cached_data = get_cached_result(roll_credits_checker_key, "credits")
+        cached_data = redisConnection.client.get(roll_credits_checker_key)
         if cached_data:
             return json.loads(cached_data)  # pyright: ignore
 

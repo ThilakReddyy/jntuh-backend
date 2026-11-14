@@ -15,13 +15,11 @@ from database.models import (
 )
 from utils.helpers import format_date
 from utils.logger import database_logger
-from utils.telemetry import log_failure, observe, trace_function
 
 
 _apns_device_registration_lock = asyncio.Lock()
 
 
-@trace_function
 async def save_details(details):
     try:
         await prismaConnection.prisma.student.upsert(
@@ -40,10 +38,9 @@ async def save_details(details):
         )
 
     except Exception as e:
-        log_failure("postgres.save_student", e, event_logger=database_logger)
+        database_logger.error(f"Database error while inserting student data: {e}")
 
 
-@trace_function
 async def save_subject_and_marks(rollNumber, result, graceMarks=False):
     inserted_count = 0
     try:
@@ -120,11 +117,12 @@ async def save_subject_and_marks(rollNumber, result, graceMarks=False):
                 inserted_count += 1
 
     except Exception as e:
-        log_failure("postgres.save_marks", e, event_logger=database_logger)
+        database_logger.error(
+            f"Database error while inserting student marks: {rollNumber}:{e}"
+        )
     return inserted_count
 
 
-@trace_function
 async def save_exam_codes(results):
     try:
         exam_pairs = [
@@ -155,13 +153,12 @@ async def save_exam_codes(results):
             )
             database_logger.info(f"Inserted {inserted_records} new records")
         else:
-            database_logger.info("No new exam-code records to insert")
+            database_logger.info("No new records to insert")
         return new_exams
     except Exception as e:
-        log_failure("postgres.save_exam_codes", e, event_logger=database_logger)
+        database_logger.error(f"Database error while inserting exam_codes: {e}")
 
 
-@observe("postgres.get_exam_codes")
 async def get_exam_codes_from_database(roll_number, rcrv=False):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": roll_number}
@@ -179,7 +176,6 @@ async def get_exam_codes_from_database(roll_number, rcrv=False):
     return {mark.examCode for mark in marks}
 
 
-@observe("postgres.save_results")
 async def save_to_database(results):
     details = results["details"]
     rollNo = details["rollNo"]
@@ -188,13 +184,10 @@ async def save_to_database(results):
     inserted_count = 0
     for result in results:
         inserted_count += await save_subject_and_marks(rollNo, result)
-    if inserted_count == 0:
-        database_logger.info("No new records to insert in %s", rollNo)
     database_logger.info(f"Exam data and marks saved for student {rollNo}")
     return inserted_count
 
 
-@observe("postgres.get_student")
 async def get_details(roll_number: str):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": roll_number}
@@ -214,7 +207,6 @@ async def get_details(roll_number: str):
     return None
 
 
-@observe("postgres.get_class")
 async def get_students_details(rollNumber: str, roll_number2: str):
     students = await prismaConnection.prisma.student.find_many(
         where={
@@ -253,7 +245,6 @@ async def get_students_details(rollNumber: str, roll_number2: str):
     return students
 
 
-@trace_function
 async def get_subscription_roll_number(roll_number: str):
     record = await prismaConnection.prisma.anonpushsubscription.find_first(
         where={"rollNumber": roll_number},
@@ -262,13 +253,11 @@ async def get_subscription_roll_number(roll_number: str):
     return record
 
 
-@trace_function
 async def get_all_subscriptions():
     record = await prismaConnection.prisma.anonpushsubscription.find_many()
     return record
 
 
-@trace_function
 async def get_notifications(
     page: int, regulation: str = "", degree: str = "", year: str = "", title: str = ""
 ):
@@ -311,7 +300,6 @@ async def get_notifications(
     return results
 
 
-@trace_function
 async def get_exam_codes(degree, regulation):
     examCodesFromDb = await prismaConnection.prisma.examcodes.find_many(
         where={"degree": degree, "regulation": regulation},
@@ -330,7 +318,6 @@ async def get_exam_codes(degree, regulation):
     return examCodes
 
 
-@trace_function
 async def check_4_2_semester(rollNumber: str):
     student = await prismaConnection.prisma.student.find_unique(
         where={"rollNumber": rollNumber},
@@ -345,7 +332,6 @@ async def check_4_2_semester(rollNumber: str):
     return None
 
 
-@trace_function
 async def get_subscription_by_anon_key(anon_key: str):
     existing = await prismaConnection.prisma.anonpushsubscription.find_unique(
         where={"anonId": anon_key}
@@ -353,7 +339,6 @@ async def get_subscription_by_anon_key(anon_key: str):
     return existing
 
 
-@trace_function
 async def save_subscription_details(data: PushSub):
     subscription_str = json.dumps(data.subscription)
 
@@ -373,7 +358,6 @@ async def save_subscription_details(data: PushSub):
     )
 
 
-@trace_function
 async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload):
     return await prismaConnection.prisma.resultdevicesubscription.upsert(
         where={
@@ -399,7 +383,6 @@ async def save_result_device_subscription(data: ResultDeviceSubscriptionPayload)
     )
 
 
-@trace_function
 async def get_result_device_subscriptions(
     roll_number: str, platform: str | None = None
 ):
@@ -409,7 +392,6 @@ async def get_result_device_subscriptions(
     return await prismaConnection.prisma.resultdevicesubscription.find_many(where=where)
 
 
-@trace_function
 async def delete_result_device_subscriptions(ids: list[str]):
     if not ids:
         return None
@@ -418,14 +400,12 @@ async def delete_result_device_subscriptions(ids: list[str]):
     )
 
 
-@trace_function
 async def delete_result_device_subscriptions_for_device(device_id: str):
     return await prismaConnection.prisma.resultdevicesubscription.delete_many(
         where={"deviceId": device_id}
     )
 
 
-@trace_function
 async def save_apns_device(data: APNSDeviceRegistrationPayload):
     # APNs may deliver the same token callback more than once, and multiple app
     # sync triggers can consequently reach this endpoint together. Serialize
@@ -466,12 +446,10 @@ async def save_apns_device(data: APNSDeviceRegistrationPayload):
         raise RuntimeError("APNs device registration failed without a database result")
 
 
-@trace_function
 async def get_apns_devices():
     return await prismaConnection.prisma.pushdevice.find_many()
 
 
-@trace_function
 async def delete_apns_devices(ids: list[str]):
     if not ids:
         return None
@@ -480,14 +458,12 @@ async def delete_apns_devices(ids: list[str]):
     )
 
 
-@trace_function
 async def delete_apns_device_for_device(device_id: str):
     return await prismaConnection.prisma.pushdevice.delete_many(
         where={"deviceId": device_id}
     )
 
 
-@trace_function
 async def save_grace_marks_proof(
     roll_number: str,
     s3_key: str,
@@ -508,7 +484,6 @@ async def save_grace_marks_proof(
     )
 
 
-@trace_function
 async def get_latest_mark_for_subject(student_id: str, subject_id: str):
     return await prismaConnection.prisma.mark.find_first(
         where={"studentId": student_id, "subjectId": subject_id},
@@ -516,7 +491,6 @@ async def get_latest_mark_for_subject(student_id: str, subject_id: str):
     )
 
 
-@trace_function
 async def upsert_grace_mark(
     *,
     student_id: str,
@@ -565,7 +539,6 @@ async def upsert_grace_mark(
     )
 
 
-@trace_function
 async def get_pending_grace_marks_proofs():
     where: GraceMarksProofWhereInput = {"status": "pending"}
     return await prismaConnection.prisma.gracemarksproof.find_many(
@@ -575,7 +548,6 @@ async def get_pending_grace_marks_proofs():
     )
 
 
-@trace_function
 async def list_grace_marks_proofs(limit: int, offset: int, status: str | None):
     where: GraceMarksProofWhereInput = {}
     if status:
@@ -591,14 +563,12 @@ async def list_grace_marks_proofs(limit: int, offset: int, status: str | None):
     return rows, total
 
 
-@trace_function
 async def get_grace_marks_proof_by_id(proof_id: str):
     return await prismaConnection.prisma.gracemarksproof.find_unique(
         where={"id": proof_id},
     )
 
 
-@trace_function
 async def update_grace_marks_proof_status(proof_id: str, new_status: str):
     return await prismaConnection.prisma.gracemarksproof.update(
         where={"id": proof_id},
@@ -606,7 +576,6 @@ async def update_grace_marks_proof_status(proof_id: str, new_status: str):
     )
 
 
-@trace_function
 async def get_latest_notifications():
     today = datetime.utcnow()
     one_weeks_ago = today - timedelta(days=7)

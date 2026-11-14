@@ -7,10 +7,8 @@ from fastapi import FastAPI, Response, status
 
 from service.cmm_pdf import generate_cmm_pdf
 from service.getResultsService import fetch_results
-from utils.telemetry import trace_function
 
 
-@trace_function(log_completion=True)
 async def fetch_cmm(app: FastAPI, roll_number: str) -> Response:
     """Return a PDF when results exist, otherwise preserve the result lookup response."""
     result_response = await fetch_results(app, roll_number)

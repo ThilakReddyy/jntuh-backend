@@ -2,10 +2,8 @@ import requests
 from config.settings import EXPIRY_TIME, FIVE_MINUTE_EXPIRY, REDIS_URL_KEY
 from utils.logger import scraping_logger
 from config.redisConnection import redisConnection
-from utils.telemetry import trace_function
 
 
-@trace_function
 def check_url():
     urls = [
         "http://results.jntuh.ac.in/results/resultAction?degree=btech&examCode=1323&etype=r16&result=null&grad=null&type=intgrade&htno=18E51A0479",
@@ -47,7 +45,6 @@ def check_url():
     return None
 
 
-@trace_function
 def check_valid_url_in_redis():
     if redisConnection.client:
         cached_url = redisConnection.client.get(REDIS_URL_KEY)

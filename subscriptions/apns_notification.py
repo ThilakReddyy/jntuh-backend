@@ -28,7 +28,6 @@ from database.operations import (
     get_result_device_subscriptions,
 )
 from utils.logger import logger
-from utils.telemetry import log_failure, trace_function
 
 
 _provider_token_lock = Lock()
@@ -40,12 +39,10 @@ _INVALID_TOKEN_REASONS = {
 }
 
 
-@trace_function
 def _base64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
-@trace_function
 def _private_key_bytes() -> bytes:
     if APNS_PRIVATE_KEY:
         return APNS_PRIVATE_KEY.replace("\\n", "\n").encode("utf-8")
@@ -54,7 +51,6 @@ def _private_key_bytes() -> bytes:
     raise RuntimeError("APNS_PRIVATE_KEY or APNS_PRIVATE_KEY_PATH is not configured")
 
 
-@trace_function
 def _create_provider_token(now: int | None = None) -> str:
     if not APNS_KEY_ID or not APNS_TEAM_ID:
         raise RuntimeError("APNS_KEY_ID and APNS_TEAM_ID must be configured")
@@ -80,7 +76,6 @@ def _create_provider_token(now: int | None = None) -> str:
     return f"{header}.{claims}.{signature}"
 
 
-@trace_function
 def _provider_token() -> str:
     global _cached_provider_token
     now = int(time.time())
@@ -92,7 +87,6 @@ def _provider_token() -> str:
         return token
 
 
-@trace_function
 def _build_result_payload(exam: Mapping[str, Any]) -> dict[str, Any]:
     title = str(exam.get("title") or "A new JNTUH result is available").strip()
     link = str(
@@ -108,7 +102,6 @@ def _build_result_payload(exam: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-@trace_function
 def _build_student_result_payload(roll_number: str) -> dict[str, Any]:
     return {
         "aps": {
@@ -123,7 +116,6 @@ def _build_student_result_payload(roll_number: str) -> dict[str, Any]:
     }
 
 
-@trace_function
 async def _send_notification(
     client: httpx.AsyncClient,
     device_token: str,
@@ -154,7 +146,6 @@ async def _send_notification(
     return False, reason
 
 
-@trace_function
 async def _deliver_many(
     records, payload: Mapping[str, Any]
 ) -> tuple[int, list[str], list[str]]:
@@ -167,7 +158,6 @@ async def _deliver_many(
 
     async with httpx.AsyncClient(http2=True, timeout=15) as client:
 
-        @trace_function
         async def deliver(record) -> None:
             nonlocal success_count
             async with semaphore:
@@ -186,13 +176,12 @@ async def _deliver_many(
                             invalid_device_ids.append(record.deviceId)
                         logger.error(f"APNs notification failed: {reason}")
                 except Exception as error:
-                    log_failure("notifications.apns.send", error)
+                    logger.error(f"APNs notification request failed: {error}")
 
         await asyncio.gather(*(deliver(record) for record in records))
     return success_count, invalid_ids, invalid_device_ids
 
 
-@trace_function
 async def notify_ios_student_result_updated(roll_number: str) -> None:
     subscriptions = await get_result_device_subscriptions(roll_number, platform="ios")
     success_count, invalid_ids, invalid_device_ids = await _deliver_many(
@@ -207,13 +196,12 @@ async def notify_ios_student_result_updated(roll_number: str) -> None:
     )
 
 
-@trace_function
 async def broadcast_ios_result_notifications(
     exams: Sequence[Mapping[str, Any]],
 ) -> None:
     try:
         devices = await get_apns_devices()
-        logger.info("APNs broadcast devices loaded", extra={"count": len(devices)})
+        print(devices)
         for exam in exams:
             success_count, invalid_ids, invalid_device_ids = await _deliver_many(
                 devices, _build_result_payload(exam)
@@ -229,4 +217,4 @@ async def broadcast_ios_result_notifications(
                 f"{len(invalid_ids)} invalid tokens removed"
             )
     except Exception as error:
-        log_failure("notifications.apns.broadcast", error)
+        logger.error(f"APNs result notification broadcast failed: {error}")

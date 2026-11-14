@@ -18,7 +18,6 @@ from reportlab.platypus import (
 
 from service.cmm_pdf import PAGE_H, PAGE_W, fit
 from utils.helpers import gradestogpa, gradestogpabppharamcyr22, isbpharmacyr22
-from utils.telemetry import trace_function
 
 
 INK = HexColor("#302D3A")
@@ -31,13 +30,11 @@ CENTER = ParagraphStyle("memo-center", parent=CELL, alignment=1)
 HEADING = ParagraphStyle("memo-heading", parent=CENTER, fontName="Helvetica-Bold", fontSize=6.5, leading=8)
 
 
-@trace_function
 def _paragraph(value, style=CELL):
     # Subject titles and student names are data, never ReportLab markup.
     return Paragraph(escape(str(value if value is not None else "-")), style)
 
 
-@trace_function
 def _grade_scale(details):
     roll = str(details.get("rollNumber", ""))
     pharmacy = len(roll) == 10 and roll[:2].isdigit() and isbpharmacyr22(roll)
@@ -45,7 +42,6 @@ def _grade_scale(details):
     return {grade.upper(): points for grade, points in scale.items() if points > 0}
 
 
-@trace_function
 def _radial_half(c, edge, *, upper):
     """Place a half-rosette against an actual table edge."""
     form = "all-results-radial-pattern"
@@ -77,7 +73,6 @@ def _radial_half(c, edge, *, upper):
     c.restoreState()
 
 
-@trace_function
 def _memo_background(c, table_top, table_bottom):
     """Border and radial halves positioned above and below the rendered table."""
     # Draw after table layout so short tables and continuation pages each get
@@ -125,7 +120,6 @@ def _memo_background(c, table_top, table_bottom):
     c.restoreState()
 
 
-@trace_function
 def _memo_paper(c):
     """Reuse the plain paper and interlaced border on every page."""
     form = "all-results-memo-paper"
@@ -158,7 +152,6 @@ def _memo_paper(c):
     c.doForm(form)
 
 
-@trace_function
 def _page(c, doc, *, details, semester, exam):
     c.saveState()
     _memo_background(c, *doc.table_bounds)
@@ -194,7 +187,6 @@ def _page(c, doc, *, details, semester, exam):
     c.restoreState()
 
 
-@trace_function
 def _has_recorded_mark(value):
     # The result model stores unavailable marks as zero. As on the results
     # page, an entirely zero/empty column is treated as unavailable. Once a
@@ -206,7 +198,6 @@ def _has_recorded_mark(value):
         return str(value).strip().upper() in {"AB", "ABS"}
 
 
-@trace_function
 def _exam_flowables(exam, scale):
     subjects = exam.get("subjects", [])
     mark_columns = [
@@ -259,11 +250,9 @@ def _exam_flowables(exam, scale):
 
 
 class _MemoDocument(BaseDocTemplate):
-    @trace_function
     def beforePage(self):
         self.table_bounds = None
 
-    @trace_function
     def afterFlowable(self, flowable):
         if isinstance(flowable, LongTable):
             bottom = self.frame._y + flowable.getSpaceAfter()
@@ -274,7 +263,6 @@ class _MemoDocument(BaseDocTemplate):
             self.table_bounds = (top, bottom)
 
 
-@trace_function
 def generate_all_results_pdf(payload: Mapping[str, Any], output_path: str | Path | None = None) -> bytes:
     """Preserve every attempt and subject, starting each exam on a new page."""
     details, semesters = payload.get("details"), payload.get("results")

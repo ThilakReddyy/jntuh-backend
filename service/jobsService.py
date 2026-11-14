@@ -1,19 +1,16 @@
 import asyncio
 import json
-import logging
 
 from config.redisConnection import redisConnection
 from database.jobOperations import deactivate_stale_jobs, get_jobs, save_jobs
 from scrapers.jobScraper import scrape_all_jobs
 from utils.logger import logger
-from utils.telemetry import log_failure, observe, trace_function
 
 
 JOB_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60
 JOB_REFRESH_LOCK_KEY = "jobs:daily-refresh-lock"
 
 
-@trace_function
 def _format_job(job) -> dict:
     try:
         tags = json.loads(job.tags) if job.tags else []
@@ -45,7 +42,6 @@ def _format_job(job) -> dict:
     }
 
 
-@trace_function
 async def fetch_jobs(
     page: int = 1,
     type: str = "",
@@ -77,7 +73,6 @@ async def fetch_jobs(
     }
 
 
-@observe("scheduler.refresh_jobs")
 async def run_job_scrape() -> dict:
     """Run one isolated refresh, guarded across multiple app workers by Redis."""
 
@@ -113,14 +108,14 @@ async def run_job_scrape() -> dict:
     except asyncio.CancelledError:
         raise
     except Exception as error:
-        log_failure("scheduler.refresh_jobs", error)
+        logger.error(f"Job refresh failed: {error}")
         return {"status": "failed", "error": str(error)}
     finally:
         if lock is not None and acquired:
             try:
                 lock.release()
-            except Exception as error:
-                log_failure("scheduler.release_job_lock", error, level=logging.WARNING)
+            except Exception:
+                pass
 
 
 async def refresh_jobs_periodically(

@@ -17,8 +17,6 @@ from typing import Any, Awaitable, Callable
 from prometheus_client import Counter, Gauge, Histogram
 
 from utils.logger import logger
-from opentelemetry.trace import StatusCode
-from utils.telemetry import operation, trace_function
 
 MCP_CALLS = Counter(
     "mcp_calls_total",
@@ -39,7 +37,6 @@ MCP_CALLS_IN_PROGRESS = Gauge(
 )
 
 
-@trace_function
 def _extract_tool_name(req: Any) -> str:
     """Return the tool name for a CallToolRequest, else ''."""
     params = getattr(req, "params", None)
@@ -47,7 +44,6 @@ def _extract_tool_name(req: Any) -> str:
     return name if isinstance(name, str) else ""
 
 
-@trace_function
 def _is_error_result(method: str, result: Any) -> bool:
     """Detect tool-call errors that are returned (not raised)."""
     if method != "CallToolRequest":
@@ -56,7 +52,6 @@ def _is_error_result(method: str, result: Any) -> bool:
     return bool(getattr(inner, "isError", False))
 
 
-@trace_function
 def instrument_mcp(mcp: Any) -> None:
     """Wrap mcp.server.request_handlers with Prometheus instrumentation.
 
@@ -73,25 +68,19 @@ def instrument_mcp(mcp: Any) -> None:
     logger.info(f"MCP metrics installed for {len(handlers)} request handler(s).")
 
 
-@trace_function
 def _wrap(
     handler: Callable[[Any], Awaitable[Any]], method: str
 ) -> Callable[[Any], Awaitable[Any]]:
-    @trace_function
     async def wrapped(req: Any) -> Any:
         tool = _extract_tool_name(req)
         MCP_CALLS_IN_PROGRESS.labels(method=method, tool=tool).inc()
         start = time.perf_counter()
         status = "success"
         try:
-            with operation("mcp.request", attributes={
-                "rpc.method": method, "mcp.tool.name": tool,
-            }) as span:
-                result = await handler(req)
-                if _is_error_result(method, result):
-                    status = "error"
-                    span.set_status(StatusCode.ERROR)
-                return result
+            result = await handler(req)
+            if _is_error_result(method, result):
+                status = "error"
+            return result
         except Exception:
             status = "error"
             raise

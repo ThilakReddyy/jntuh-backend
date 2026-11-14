@@ -2,10 +2,8 @@ from datetime import datetime, timedelta
 
 from config.connection import prismaConnection
 from utils.logger import database_logger
-from utils.telemetry import log_failure, trace_function
 
 
-@trace_function
 async def _upsert_location(name: str) -> str:
     record = await prismaConnection.prisma.joblocation.upsert(
         where={"locationName": name},
@@ -14,7 +12,6 @@ async def _upsert_location(name: str) -> str:
     return record.id
 
 
-@trace_function
 async def save_jobs(jobs: list[dict]) -> int:
     """Upsert normalized jobs without mutating caller-owned records."""
 
@@ -69,11 +66,12 @@ async def save_jobs(jobs: list[dict]) -> int:
                 )
             saved += 1
         except Exception as error:
-            log_failure("postgres.save_job", error, event_logger=database_logger)
+            database_logger.error(
+                f"Failed to save job {job.get('externalId')} ({job.get('source')}): {error}"
+            )
     return saved
 
 
-@trace_function
 async def deactivate_stale_jobs(max_age_days: int = 45) -> int:
     """Hide jobs not observed recently; records remain available for audit."""
 
@@ -87,7 +85,6 @@ async def deactivate_stale_jobs(max_age_days: int = 45) -> int:
     return result
 
 
-@trace_function
 async def get_jobs(
     page: int = 1,
     type: str = "",

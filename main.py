@@ -1,6 +1,7 @@
 import aio_pika
 import asyncio
 import httpx
+import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -9,14 +10,6 @@ from fastapi_mcp import FastApiMCP
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-
-from utils.telemetry import (
-    RequestTelemetryMiddleware,
-    configure_telemetry,
-    shutdown_telemetry,
-)
-
-configure_telemetry("api")
 
 from chatbot.provider import OpenAICompatibleProvider
 from chatbot.service import ChatbotService
@@ -94,7 +87,6 @@ async def lifespan(app: FastAPI):
         # Close Redis
         if hasattr(app.state, "redis"):
             await app.state.redis.close()
-        await asyncio.to_thread(shutdown_telemetry)
 
 
 def custom_openapi():
@@ -161,7 +153,17 @@ instrumentator = Instrumentator()
 instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 
-app.add_middleware(RequestTelemetryMiddleware)
+@app.middleware("http")
+async def log_request(request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = (time.perf_counter() - start) * 1000
+    logger.info(
+        f"{request.client.host} {request.method} {request.url.path} "
+        f"→ {response.status_code} [{duration:.2f} ms]"
+    )
+
+    return response
 
 
 routes = create_routes(app)

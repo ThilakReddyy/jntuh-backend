@@ -47,8 +47,6 @@ services:
       interval: 20s
       timeout: 10s
       retries: 5
-    volumes:
-      - ./observability/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
 
   prometheus:
     image: prom/prometheus:latest
@@ -75,12 +73,6 @@ services:
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
       REDIS_URL: redis://redisjntuh:6379/0
       QUEUE_NAME: default_queue
-      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-jntuh-backend}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
-      WORKER_METRICS_ENABLED: "true"
-      WORKER_METRICS_HOST: "0.0.0.0"
-      WORKER_METRICS_PORT: "8001"
 
     ports:
       - "8000:8000"
@@ -108,9 +100,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=getflat100
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning/datasources/jntuh.yml:/etc/grafana/provisioning/datasources/jntuh.yml:ro
-      - ./observability/grafana/provisioning/dashboards/jntuh.yml:/etc/grafana/provisioning/dashboards/jntuh.yml:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards/jntuh:ro
     depends_on:
       - loki
 
@@ -134,53 +123,8 @@ services:
     depends_on:
       - db
 
-  tempo:
-    image: grafana/tempo:2.9.0
-    restart: unless-stopped
-    command: ["-config.file=/etc/tempo.yml"]
-    # The image runs as UID 10001; Docker initializes the volume from this
-    # existing, writable directory in the image.
-    volumes:
-      - ./observability/tempo.yml:/etc/tempo.yml:ro
-      - tempo_data:/var/tempo
-
-  cadvisor:
-    image: ghcr.io/google/cadvisor:0.60.6
-    restart: unless-stopped
-    privileged: true
-    command:
-      - --docker_only=true
-      - --housekeeping_interval=15s
-      - --store_container_labels=true
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    devices:
-      - /dev/kmsg:/dev/kmsg
-
-  alloy:
-    image: grafana/alloy:v1.22.0
-    restart: unless-stopped
-    user: "0:0"
-    command:
-      - run
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-      - /etc/alloy/config.alloy
-    volumes:
-      - ./observability/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - alloy_data:/var/lib/alloy/data
-    depends_on:
-      - loki
-
 volumes:
   postgres_data:
   prometheus_data:
   loki_data: # Added persistent volume for Loki
   grafana_data:
-  tempo_data:
-  alloy_data:

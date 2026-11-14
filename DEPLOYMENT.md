@@ -1,10 +1,5 @@
 # Deployment Guide
 
-The additive observability stack and its one-time startup commands are documented
-in [`observability/README.md`](observability/README.md). `Dockerfile` and the
-deployment workflow remain unchanged; the app-only workflow does not start new
-monitoring services or reload Grafana/Prometheus configuration.
-
 ## Deployment model
 
 Production traffic reaches the FastAPI service through Cloudflare and a reverse proxy on EC2. The application uses PostgreSQL, Redis, RabbitMQ, S3-compatible object storage, notification providers, and external JNTUH result servers.
@@ -18,7 +13,7 @@ The API also starts the result-notification and job-refresh schedulers in its li
 
 For component details and data flows, see `architecture.md`.
 
-## Compose deployment contract
+## Current repository caveat
 
 The GitHub Actions workflow runs:
 
@@ -27,11 +22,12 @@ docker-compose build app
 docker-compose up -d --no-deps app
 ```
 
-The committed `docker-compose.yml` defines `app`. The workflow rebuilds and
-restarts it without starting dependencies. Provision infrastructure separately
-before the first application deployment, and apply the monitoring additions using
-[`observability/README.md`](observability/README.md). Subsequent application
-deployments keep the same workflow commands.
+The `app` service is commented out in the committed `docker-compose.yml`. A clean checkout therefore does not satisfy the deployment workflow by itself. Before relying on automated deployment, do one of the following:
+
+1. Enable and maintain the `app` service in the committed Compose configuration; or
+2. Provide a production Compose override and update the workflow to reference it explicitly.
+
+Do not assume a host-only untracked override will survive every provisioning or recovery scenario. Treat the Compose/workflow contract as a release prerequisite.
 
 ## GitHub Actions prerequisites
 

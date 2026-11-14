@@ -203,34 +203,13 @@ The public `/api/getCMM` route is separate: it renders a clearly watermarked sam
 
 ## Observability
 
-FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional
-instrumentation. `prometheus.yml` also scrapes RabbitMQ, Redis Exporter, and
-PostgreSQL Exporter. Alloy collects application and infrastructure logs from
-Docker stdout/stderr. cAdvisor supplies each container's CPU, memory and network
-metrics. Tempo stores OpenTelemetry traces across the API, Redis result-cache
-reads/invalidation, RabbitMQ and worker. The worker exposes its own internal metrics on port 8001
-when enabled. Grafana provisions seven dashboards covering the stack, containers,
-API/worker, PostgreSQL, Redis, RabbitMQ, and logs/traces. See
-[`observability/README.md`](observability/README.md) for configuration and the
-one-time monitoring startup required by the unchanged app-only deploy workflow.
-
-Nested spans at application boundaries identify the module and qualified function.
-The default samples 10% of root traces while honoring parent decisions. Tiny
-helpers, validators and per-row/per-grade computations remain ordinary calls;
-full function tracing is opt-in for debugging. Logs use bounded background
-output, with local files and routine function completion INFO messages opt-in.
-Request, warning/error and business logs remain active. No function arguments or
-response bodies are captured, and Prometheus metrics remain unsampled.
+FastAPI exposes Prometheus metrics at `/metrics`; MCP calls receive additional instrumentation. `prometheus.yml` also scrapes RabbitMQ, Redis Exporter, and PostgreSQL Exporter. Application and component loggers write to local files/standard output and push to Loki, and Grafana consumes the monitoring stack.
 
 ## Deployment topology
 
 The production workflow runs on pushes to `main`, connects to EC2 over SSH, updates the checkout, rebuilds the application service, and restarts it with Docker Compose. Cloudflare and a reverse proxy sit in front of the application. The image runs `prisma db push`, starts `main2.py` in the background, and runs Uvicorn in the foreground.
 
-The committed Compose configuration defines the application, PostgreSQL, Redis,
-RabbitMQ, Prometheus, Loki, Grafana, Redis/PostgreSQL exporters, Tempo, cAdvisor,
-and Alloy. The workflow only rebuilds/restarts `app` with `--no-deps`; monitoring
-additions require the one-time startup described in `observability/README.md`.
-An S3-compatible endpoint may be configured, but no MinIO service is present.
+The committed Compose configuration defines PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, Grafana, and Redis/PostgreSQL exporters. At the time of this document, its application service is commented out even though the deployment workflow expects an `app` service; an S3-compatible endpoint may be configured, but no MinIO service is present in the committed Compose file.
 
 ## Architectural constraints and invariants
 

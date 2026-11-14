@@ -10,10 +10,8 @@ from database.models import (
 )
 from database.operations import get_details
 from messaging.publisher import publish_message
-from utils.telemetry import trace_function
 
 
-@trace_function(log_completion=True)
 async def fetch_result_contrast(app: FastAPI, roll_number_1: str, roll_number_2: str):
     """Side-by-side comparison of EXACTLY TWO students' consolidated results.
 

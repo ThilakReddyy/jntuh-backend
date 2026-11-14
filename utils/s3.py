@@ -25,7 +25,6 @@ from config.settings import (
     S3_PUBLIC_URL_BASE,
 )
 from utils.logger import logger
-from utils.telemetry import trace_function
 
 _session = aioboto3.Session()
 _s3_config = Config(
@@ -34,7 +33,6 @@ _s3_config = Config(
 )
 
 
-@trace_function
 def _client_kwargs() -> dict:
     return {
         "endpoint_url": S3_ENDPOINT_URL,
@@ -45,7 +43,6 @@ def _client_kwargs() -> dict:
     }
 
 
-@trace_function
 async def _ensure_bucket(s3) -> None:
     if not S3_ENDPOINT_URL:
         return
@@ -60,7 +57,6 @@ async def _ensure_bucket(s3) -> None:
         raise
 
 
-@trace_function(log_completion=True)
 async def upload_bytes(key: str, data: bytes, content_type: str) -> str:
     client_ctx = cast(
         AsyncContextManager[Any], _session.client("s3", **_client_kwargs())
@@ -79,7 +75,6 @@ async def upload_bytes(key: str, data: bytes, content_type: str) -> str:
     return f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{key}"
 
 
-@trace_function(log_completion=True)
 async def generate_get_url(key: str, expires_in: int = 3600) -> str:
     """Return a presigned GET URL for `key` valid for `expires_in` seconds.
 
@@ -98,7 +93,6 @@ async def generate_get_url(key: str, expires_in: int = 3600) -> str:
         )
 
 
-@trace_function(log_completion=True)
 async def generate_get_urls(
     keys: list[str], expires_in: int = 3600
 ) -> dict[str, str]:

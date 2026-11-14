@@ -35,36 +35,16 @@ curl -fsS https://jntuhresults.dhethi.com/metrics > /dev/null
 
 ## Logs and metrics
 
-For JSON logging, API/worker traces, container CPU/memory/network panels, and
-seven provisioned Grafana dashboards, see
-[`observability/README.md`](observability/README.md). Alloy collects Docker stdout/stderr
-for every Compose service, including PostgreSQL, Redis and RabbitMQ. Use the
-Containers dashboard's service selector for the remaining monitoring/exporter
-containers, and the Logs and Traces dashboard to follow an `X-Trace-Id`.
+Application/component files:
 
-Docker stdout and Alloy/Loki are the default log outputs. Log formatting and
-output run in a background thread with a bounded queue. If
-`application_log_records_dropped_total` increases, the output queue is saturated.
-Application/component files are optional (`LOG_FILE_ENABLED=true`):
+- `app.log`
+- `rabbitmq.log`
+- `database.log`
+- `redis.log`
+- `scraper.log`
+- `telegram.log`
 
-- `app-<pid>.log`
-- `rabbitmq-<pid>.log`
-- `database-<pid>.log`
-- `redis-<pid>.log`
-- `scraper-<pid>.log`
-- `telegram-<pid>.log`
-
-Each local file rotates at 10 MiB with three backups. Logs flow to Loki through
-Alloy's Docker log collector. Use Prometheus/Grafana to correlate API
-latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. If Loki logs
-stop, inspect Alloy and its Docker socket access; stdout and any enabled local files continue
-independently of Loki availability.
-
-If tracing adds latency, keep `OTEL_FUNCTION_TRACING_MODE=boundary` (the default)
-and use 10% root trace sampling. Set `full` temporarily for debugging, then restart
-the application to restore boundary mode. Keep routine function completion logs
-off (`LOG_OPERATION_COMPLETIONS=false`). Request, warning/error and required
-business logs remain enabled, as do all Prometheus metrics.
+Logs also flow to Loki when its configured endpoint is reachable. Use Prometheus/Grafana to correlate API latency/status, RabbitMQ depth, Redis health, and PostgreSQL health. A local/container networking mismatch in `utils/logger.py` can prevent Loki delivery without stopping application requests.
 
 ## Result request returns 202 indefinitely
 
@@ -115,7 +95,7 @@ Symptoms:
 
 - Result misses return 424.
 - Redis `url` is `.`.
-- `scraper-<pid>.log` or the scraper's Docker logs show both upstream probes failing.
+- `scraper.log` shows both upstream probes failing.
 
 Actions:
 
