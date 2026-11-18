@@ -50,7 +50,7 @@ GRACE_MARKS_ADMIN_KEY = os.getenv("GRACE_MARKS_ADMIN_KEY")
 # process startup so unrelated endpoints can still run if verification is not
 # configured; the grace-marks upload endpoint fails closed with HTTP 503.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or None
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-decision-1")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _configured_cmm_reference = os.getenv("CMM_REFERENCE_PATH")
 CMM_REFERENCE_PATH = (

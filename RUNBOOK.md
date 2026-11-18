@@ -185,6 +185,10 @@ Map the response first:
 
 Check `GEMINI_API_KEY`, model/reference availability, S3 credentials/bucket/endpoint, and PostgreSQL. Do not bypass classification or make the bucket public as an incident workaround. A metadata failure after upload may leave an orphaned object; record its exact key and reconcile it deliberately.
 
+CMM verification uses `GEMINI_MODEL=gemini-decision-1` with the v1beta Decisions API and `google-genai` 3.5.0. Remove or replace any deployment override pointing at a generative model. The request sends labeled reference/candidate image or PDF blocks, a three-way classification question, and an independent sample/invalid-use check. Responses are validated for required answer types, finite probabilities, normalization, and consistent choices/confidence before the upload gate runs; malformed responses produce 503.
+
+Only a `cmm` answer with probability at least 0.9 and sample/invalid-use probability at most 0.1 can pass. A sample probability of at least 0.5 is rejected as `not_cmm`; otherwise an insufficiently confident CMM is `uncertain`. These are initial conservative thresholds, not validated accuracy guarantees; calibrate them using labeled official, sample, unrelated, and unreadable documents. The internal result retains its existing fields, but evidence is empty and document type is a fixed label because the Decisions API generates no explanations.
+
 ## Jobs are stale or empty
 
 The jobs scheduler runs immediately at API startup and every 24 hours under Redis lock `jobs:daily-refresh-lock`. It preserves existing records when every source returns no accepted jobs and marks jobs inactive after 45 days unseen.

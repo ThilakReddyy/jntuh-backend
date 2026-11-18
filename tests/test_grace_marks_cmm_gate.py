@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import UploadFile
 
 
@@ -170,6 +171,35 @@ def test_uncertain_document_is_not_uploaded_or_saved(monkeypatch):
 
     assert response.status_code == 422
     assert _body(response)["classification"] == "uncertain"
+
+
+@pytest.mark.parametrize("failure", ["malformed_response", "provider_error"])
+def test_classifier_failure_is_unavailable_without_storage(monkeypatch, failure):
+    from service.cmm_classifier import _parse_decision_response
+
+    async def eligible(_roll_no):
+        return True, 200, {}
+
+    async def classify(_data, _content_type):
+        if failure == "malformed_response":
+            return _parse_decision_response({"answers": {}})
+        raise RuntimeError("provider unavailable")
+
+    upload = AsyncMock()
+    save = AsyncMock()
+    monkeypatch.setattr(grace_marks_service, "evaluate_eligibility", eligible)
+    monkeypatch.setattr(grace_marks_service, "classify_cmm_document", classify)
+    monkeypatch.setattr(grace_marks_service, "upload_bytes", upload)
+    monkeypatch.setattr(grace_marks_service, "save_grace_marks_proof", save)
+
+    response = asyncio.run(
+        grace_marks_service.upload_proof(None, "22XX1A0501", _upload())
+    )
+
+    assert response.status_code == 503
+    assert "answers" not in _body(response)["message"]
+    upload.assert_not_awaited()
+    save.assert_not_awaited()
 
 
 def test_confirmed_cmm_is_uploaded_then_saved(monkeypatch):
