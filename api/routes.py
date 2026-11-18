@@ -260,6 +260,11 @@ def create_routes(app: FastAPI):
             "S3 and recorded in the database. Per-IP rate limit: 5/minute."
         ),
         tags=["Results"],
+        responses={
+            502: {"description": "Document verification provider or storage error."},
+            503: {"description": "Document verification unavailable or busy."},
+            504: {"description": "Document verification timed out."},
+        },
     )
     @limiter.limit("5/minute")
     async def upload_grace_marks_proof(

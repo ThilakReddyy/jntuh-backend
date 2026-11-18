@@ -182,7 +182,7 @@ The public notification reads use PostgreSQL with five-minute Redis caches: a fi
 
 ## Grace-marks and CMM flows
 
-Grace-marks eligibility requires a B.Tech/B.Pharm roll number, stored 4-2 marks, and at least one remaining backlog. Proof upload repeats that check, limits the upload to PDF/PNG/JPEG and 5 MB, and sends the candidate plus a known reference document to Gemini. Only a confirmed CMM is uploaded to S3 and recorded as a pending `GraceMarksProof` row.
+Grace-marks eligibility requires a B.Tech/B.Pharm roll number, stored 4-2 marks, and at least one remaining backlog. Proof upload repeats that check, limits the upload to PDF/PNG/JPEG and 5 MB, and sends only the candidate to the Gemini Decisions API using a shared asynchronous HTTP client. Verification has an 8-second default deadline, no automatic retries, and returns explicit timeout/provider errors before storage. Only a confirmed CMM is uploaded to S3 and recorded as a pending `GraceMarksProof` row.
 
 Hidden admin routes protected by `GRACE_MARKS_ADMIN_KEY` list/review proofs, return one-hour presigned download URLs, update review status, and upsert grace-mark attempts. A successful grace-mark write invalidates the main per-student result caches.
 

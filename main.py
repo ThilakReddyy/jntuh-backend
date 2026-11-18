@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
     """Manages the lifespan of the application, ensuring RabbitMQ connection is opened and closed properly."""
     notification_refresh_task = None
     job_refresh_task = None
+    cmm_http_client = httpx.AsyncClient()
+    app.state.cmm_http_client = cmm_http_client
 
     try:
         logger.info("Starting FastAPI & RabbitMQ Consumer...")
@@ -64,6 +66,7 @@ async def lifespan(app: FastAPI):
 
         logger.info("Shutting down...")
     finally:
+        await cmm_http_client.aclose()
         if notification_refresh_task is not None:
             notification_refresh_task.cancel()
             try:

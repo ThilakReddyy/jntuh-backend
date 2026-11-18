@@ -179,15 +179,18 @@ Map the response first:
 
 - 400/413: invalid type, empty file, or file larger than 5 MB.
 - 422: classifier returned `not_cmm` or `uncertain`.
-- 503: Gemini configuration/provider/reference document is unavailable.
-- 502: object storage upload failed.
+- 503: Gemini configuration/network is unavailable, or the provider is rate limited.
+- 502: verification provider returned an error/invalid response, or object storage upload failed.
+- 504: verification exceeded its deadline.
 - 500 after upload: object was stored but proof metadata could not be recorded.
 
-Check `GEMINI_API_KEY`, model/reference availability, S3 credentials/bucket/endpoint, and PostgreSQL. Do not bypass classification or make the bucket public as an incident workaround. A metadata failure after upload may leave an orphaned object; record its exact key and reconcile it deliberately.
+Check `GEMINI_API_KEY`, model availability, S3 credentials/bucket/endpoint, and PostgreSQL. Do not bypass classification or make the bucket public as an incident workaround. A metadata failure after upload may leave an orphaned object; record its exact key and reconcile it deliberately.
 
-CMM verification uses `GEMINI_MODEL=gemini-decision-1` with the v1beta Decisions API and `google-genai` 3.5.0. Remove or replace any deployment override pointing at a generative model. The request sends labeled reference/candidate image or PDF blocks, a three-way classification question, and an independent sample/invalid-use check. Responses are validated for required answer types, finite probabilities, normalization, and consistent choices/confidence before the upload gate runs; malformed responses produce 503.
+CMM verification uses `GEMINI_MODEL=gemini-decision-1` with the v1beta Decisions REST API over a shared asynchronous HTTP client. It sends only the candidate image/PDF and one classification question. No reference document is required; `CMM_REFERENCE_PATH` is no longer used. The question explicitly rejects sample/specimen/invalid-use disclaimers, unrelated documents and semester-only sheets. Only `cmm` answers with probability at least 0.9 pass; lower-confidence positives become `uncertain`. Required answer types, finite normalized probabilities and consistent choice/confidence are validated before storage.
 
-Only a `cmm` answer with probability at least 0.9 and sample/invalid-use probability at most 0.1 can pass. A sample probability of at least 0.5 is rejected as `not_cmm`; otherwise an insufficiently confident CMM is `uncertain`. These are initial conservative thresholds, not validated accuracy guarantees; calibrate them using labeled official, sample, unrelated, and unreadable documents. The internal result retains its existing fields, but evidence is empty and document type is a fixed label because the Decisions API generates no explanations.
+`CMM_VERIFICATION_TIMEOUT_SECONDS` defaults to 8 seconds (bounded to 1–30). This wall-clock deadline covers the provider request and response processing; transport cancellation stops the request on timeout. There are no automatic retries. The deadline applies to verification, not eligibility lookup or S3/database writes after successful verification.
+
+Failures return `status: failure`, a stable `code`, and a safe user-facing `message`: `verification_timeout` (504), `verification_busy` (503), `verification_unavailable` (503), `verification_provider_error` (502), or `verification_invalid_response` (502). Never return raw provider bodies, API keys or document data. Storage must not run after any verification error. Logs record only model, outcome and duration in milliseconds. Confidence thresholds are initial policy and still need calibration against labeled traffic.
 
 ## Jobs are stale or empty
 

@@ -3,7 +3,10 @@ import base64
 import os
 from pathlib import Path
 import sys
-from unittest.mock import MagicMock
+import json
+from time import perf_counter
+
+import httpx
 
 import pytest
 from pydantic import ValidationError
@@ -29,7 +32,7 @@ for name in (
 from service import cmm_classifier as classifier  # noqa: E402
 
 
-def _response(choice="cmm", probabilities=None, sample_probability=0.01):
+def _response(choice="cmm", probabilities=None):
     probabilities = probabilities or {"cmm": 0.98, "not_cmm": 0.01, "uncertain": 0.01}
     return {
         "answers": {
@@ -38,13 +41,8 @@ def _response(choice="cmm", probabilities=None, sample_probability=0.01):
                 "choice": choice,
                 "confidence": probabilities[choice],
                 "probabilities": probabilities,
-            },
-            "sample_or_invalid": {
-                "type": "noul",
-                "noul": sample_probability,
-                "confidence": max(sample_probability, 1 - sample_probability),
-            },
-        },
+            }
+        }
     }
 
 
@@ -64,13 +62,9 @@ def _response(choice="cmm", probabilities=None, sample_probability=0.01):
             _response(probabilities={"cmm": 0.8, "not_cmm": 0.1, "uncertain": 0.1}),
             "uncertain",
         ),
-        (_response(sample_probability=0.99), "not_cmm"),
-        (_response(sample_probability=0.2), "uncertain"),
-        (_response(sample_probability=0.5), "not_cmm"),
         (
             _response(
                 probabilities={"cmm": 0.9, "not_cmm": 0.05, "uncertain": 0.05},
-                sample_probability=0.1,
             ),
             "cmm",
         ),
@@ -111,7 +105,7 @@ def test_invalid_classification_fails_closed(field, value):
         {},
         {"answers": None},
         {"answers": {}},
-        {"answers": {"classification": _response()["answers"]["classification"]}},
+        {"answers": {"classification": None}},
     ],
 )
 def test_missing_answers_fail_closed(payload):
@@ -119,88 +113,139 @@ def test_missing_answers_fail_closed(payload):
         classifier._parse_decision_response(payload)
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [("type", "choice"), ("noul", float("inf")), ("noul", 0.0), ("confidence", 0.1)],
-)
-def test_invalid_sample_answer_fails_closed(field, value):
-    payload = _response()
-    payload["answers"]["sample_or_invalid"][field] = value
-    with pytest.raises(ValidationError):
-        classifier._parse_decision_response(payload)
-
-
-@pytest.mark.parametrize(
-    "reference_suffix,candidate_mime",
-    [(".jpg", "application/pdf"), (".pdf", "image/png")],
-)
-def test_classifier_uses_decisions_and_serializes_documents(
-    monkeypatch, tmp_path, reference_suffix, candidate_mime
-):
-    # Exercise the real SDK request serialization and response parsing without network I/O.
-    import httpx
-    from google import genai
-
-    reference = tmp_path / ("reference" + reference_suffix)
-    reference.write_bytes(b"reference")
+@pytest.mark.parametrize("mime", ["application/pdf", "image/jpeg", "image/png"])
+def test_request_sends_only_candidate_and_reuses_client(monkeypatch, mime):
     monkeypatch.setattr(classifier, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(classifier, "GEMINI_MODEL", "gemini-decision-1")
-    monkeypatch.setattr(classifier, "CMM_REFERENCE_PATH", reference)
     captured = []
 
-    def handle(request, **_kwargs):
-        import json
+    async def handle(request):
+        captured.append(request)
+        return httpx.Response(200, json=_response())
 
-        captured.append((request, json.loads(request.content)))
-        return httpx.Response(200, json=_response(), request=request)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            for _ in range(2):
+                result = await classifier.classify_cmm_document(
+                    b"candidate", mime, http_client=client
+                )
+                assert result.is_cmm
+                assert not client.is_closed
 
-    # GAOS uses its own HTTP client, so replace its send method at the transport boundary.
-    with genai.Client(
-        api_key="test-key", http_options={"api_version": "v1beta"}
-    ) as client:
-        monkeypatch.setattr(client.decisions.sdk_configuration.client, "send", handle)
-        factory = MagicMock()
-        factory.return_value.__enter__.return_value = client
-        monkeypatch.setattr(classifier.genai, "Client", factory)
-        result = asyncio.run(
-            classifier.classify_cmm_document(b"candidate", candidate_mime)
-        )
-
-    assert result.is_cmm
-    factory.assert_called_once_with(
-        api_key="test-key", http_options={"api_version": "v1beta"}
-    )
-    request, body = captured[0]
-    assert request.url.path == "/v1beta/decisions"
+    asyncio.run(run())
+    assert len(captured) == 2
+    request = captured[0]
+    assert str(request.url) == classifier.DECISIONS_URL
+    assert request.headers["x-goog-api-key"] == "test-key"
+    body = json.loads(request.content)
     assert body["model"] == "gemini-decision-1"
-    assert body["questions"]["classification"]["type"] == "choice"
-    assert body["questions"]["sample_or_invalid"]["type"] == "noul"
-    reference_block, candidate_block = body["input"][1], body["input"][3]
-    for block, data, mime in (
-        (
-            reference_block,
-            b"reference",
-            "application/pdf" if reference_suffix == ".pdf" else "image/jpeg",
-        ),
-        (candidate_block, b"candidate", candidate_mime),
-    ):
-        assert base64.b64decode(block["data"]) == data
-        assert block["mime_type"] == mime
-        assert block["type"] == ("document" if mime == "application/pdf" else "image")
-    assert "generationConfig" not in body
+    assert len(body["input"]) == 1
+    block = body["input"][0]
+    assert base64.b64decode(block["data"]) == b"candidate"
+    assert block["mime_type"] == mime
+    assert block["type"] == ("document" if mime == "application/pdf" else "image")
+    assert list(body["questions"]) == ["classification"]
+    assert "sample" in body["questions"]["classification"]["criteria"]["not_cmm"]
 
 
 @pytest.mark.parametrize(
-    "failure", ["key", "model", "reference", "reference_type", "size", "mime"]
+    "status,code,client_status",
+    [
+        (401, "verification_unavailable", 503),
+        (403, "verification_unavailable", 503),
+        (429, "verification_busy", 503),
+        (500, "verification_provider_error", 502),
+        (503, "verification_provider_error", 502),
+    ],
 )
-def test_configuration_and_input_fail_before_provider_call(
-    monkeypatch, tmp_path, failure
+def test_provider_error_is_not_retried_and_is_sanitized(
+    monkeypatch, status, code, client_status
 ):
-    reference = tmp_path / (
-        "reference.txt" if failure == "reference_type" else "reference.jpg"
-    )
-    if failure != "reference":
-        reference.write_bytes(b"reference")
+    monkeypatch.setattr(classifier, "GEMINI_API_KEY", "test-key")
+    calls = []
+
+    async def handle(request):
+        calls.append(request)
+        return httpx.Response(status, json={"error": "secret provider details"})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            with pytest.raises(classifier.CMMVerificationError) as caught:
+                await classifier.classify_cmm_document(
+                    b"candidate", "image/jpeg", http_client=client
+                )
+            assert caught.value.code == code
+            assert caught.value.status_code == client_status
+            assert "secret" not in str(caught.value)
+
+    asyncio.run(run())
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "failure", ["connection", "transport_timeout", "malformed_json", "invalid_schema"]
+)
+def test_provider_failures(monkeypatch, failure):
+    monkeypatch.setattr(classifier, "GEMINI_API_KEY", "test-key")
+
+    async def handle(request):
+        if failure == "connection":
+            raise httpx.ConnectError("secret", request=request)
+        if failure == "transport_timeout":
+            raise httpx.ReadTimeout("secret", request=request)
+        if failure == "malformed_json":
+            return httpx.Response(200, text="not json")
+        return httpx.Response(200, json={"answers": {}})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            with pytest.raises(classifier.CMMVerificationError) as caught:
+                await classifier.classify_cmm_document(
+                    b"candidate", "image/jpeg", http_client=client
+                )
+            expected = {
+                "connection": ("verification_unavailable", 503),
+                "transport_timeout": ("verification_timeout", 504),
+            }.get(failure, ("verification_invalid_response", 502))
+            assert (caught.value.code, caught.value.status_code) == expected
+            assert "secret" not in str(caught.value)
+
+    asyncio.run(run())
+
+
+def test_wall_clock_deadline_cancels_provider_without_retry(monkeypatch):
+    monkeypatch.setattr(classifier, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(classifier, "CMM_VERIFICATION_TIMEOUT_SECONDS", 0.02)
+    calls = []
+    cancelled = []
+
+    async def handle(request):
+        calls.append(request)
+        try:
+            await asyncio.sleep(60)
+            return httpx.Response(200, json=_response())
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            started = perf_counter()
+            with pytest.raises(classifier.CMMVerificationError) as caught:
+                await classifier.classify_cmm_document(
+                    b"candidate", "image/jpeg", http_client=client
+                )
+            assert caught.value.status_code == 504
+            assert caught.value.code == "verification_timeout"
+            assert perf_counter() - started < 0.5
+
+    asyncio.run(run())
+    assert len(calls) == 1
+    assert cancelled == [True]
+
+
+@pytest.mark.parametrize("failure", ["key", "model", "size", "mime"])
+def test_invalid_configuration_and_input_fail_before_provider(monkeypatch, failure):
     monkeypatch.setattr(
         classifier, "GEMINI_API_KEY", None if failure == "key" else "test-key"
     )
@@ -209,15 +254,21 @@ def test_configuration_and_input_fail_before_provider_call(
         "GEMINI_MODEL",
         "gemini-3.5-flash" if failure == "model" else "gemini-decision-1",
     )
-    monkeypatch.setattr(classifier, "CMM_REFERENCE_PATH", reference)
     if failure == "size":
         monkeypatch.setattr(classifier, "MAX_INLINE_BYTES", 1)
-    factory = MagicMock(side_effect=AssertionError("provider must not run"))
-    monkeypatch.setattr(classifier.genai, "Client", factory)
-    with pytest.raises((classifier.CMMClassifierConfigurationError, ValueError)):
-        asyncio.run(
-            classifier.classify_cmm_document(
-                b"candidate", "text/plain" if failure == "mime" else "image/jpeg"
-            )
-        )
-    factory.assert_not_called()
+
+    async def handle(request):
+        raise AssertionError("provider must not run")
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            with pytest.raises(
+                (classifier.CMMClassifierConfigurationError, ValueError)
+            ):
+                await classifier.classify_cmm_document(
+                    b"candidate",
+                    "text/plain" if failure == "mime" else "image/jpeg",
+                    http_client=client,
+                )
+
+    asyncio.run(run())

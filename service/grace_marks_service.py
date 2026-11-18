@@ -30,6 +30,7 @@ from utils.logger import database_logger, logger
 from utils.s3 import generate_get_url, generate_get_urls, upload_bytes
 from service.cmm_classifier import (
     CMMClassifierConfigurationError,
+    CMMVerificationError,
     classify_cmm_document,
 )
 
@@ -166,13 +167,26 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
         )
 
     try:
-        cmm_result = await classify_cmm_document(data, content_type)
+        http_client = getattr(getattr(app, "state", None), "cmm_http_client", None)
+        if http_client is None:
+            cmm_result = await classify_cmm_document(data, content_type)
+        else:
+            cmm_result = await classify_cmm_document(
+                data, content_type, http_client=http_client
+            )
+    except CMMVerificationError as exc:
+        logger.warning("CMM verification failed: %s", exc.code)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"status": "failure", "code": exc.code, "message": str(exc)},
+        )
     except CMMClassifierConfigurationError:
         logger.exception("CMM classifier is not configured")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "status": "failure",
+                "code": "verification_unavailable",
                 "message": "Document verification is temporarily unavailable. Please try again later.",
             },
         )
@@ -182,6 +196,7 @@ async def upload_proof(app, roll_no: str, file: UploadFile):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "status": "failure",
+                "code": "verification_unavailable",
                 "message": "We couldn't verify this document right now. Please try again later.",
             },
         )

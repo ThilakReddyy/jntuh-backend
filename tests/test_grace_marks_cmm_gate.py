@@ -202,6 +202,99 @@ def test_classifier_failure_is_unavailable_without_storage(monkeypatch, failure)
     save.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "code,status_code",
+    [
+        ("verification_timeout", 504),
+        ("verification_provider_error", 502),
+        ("verification_invalid_response", 502),
+        ("verification_busy", 503),
+        ("verification_unavailable", 503),
+    ],
+)
+def test_verification_errors_reach_user_without_storage(monkeypatch, code, status_code):
+    from service.cmm_classifier import CMMVerificationError
+
+    monkeypatch.setattr(
+        grace_marks_service,
+        "evaluate_eligibility",
+        AsyncMock(return_value=(True, 200, {})),
+    )
+    monkeypatch.setattr(
+        grace_marks_service,
+        "classify_cmm_document",
+        AsyncMock(
+            side_effect=CMMVerificationError(
+                code, "Verification failed. Please try again.", status_code
+            )
+        ),
+    )
+    upload = AsyncMock()
+    save = AsyncMock()
+    monkeypatch.setattr(grace_marks_service, "upload_bytes", upload)
+    monkeypatch.setattr(grace_marks_service, "save_grace_marks_proof", save)
+    response = asyncio.run(
+        grace_marks_service.upload_proof(None, "22XX1A0501", _upload())
+    )
+    assert response.status_code == status_code
+    assert _body(response) == {
+        "status": "failure",
+        "code": code,
+        "message": "Verification failed. Please try again.",
+    }
+    upload.assert_not_awaited()
+    save.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "failure,expected_status,expected_code",
+    [
+        ("timeout", 504, "verification_timeout"),
+        ("upstream", 502, "verification_provider_error"),
+        ("malformed", 502, "verification_invalid_response"),
+    ],
+)
+def test_real_verifier_failure_uses_shared_client_and_reaches_caller(
+    monkeypatch, failure, expected_status, expected_code
+):
+    import httpx
+    from service import cmm_classifier
+
+    monkeypatch.setattr(cmm_classifier, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(cmm_classifier, "CMM_VERIFICATION_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(
+        grace_marks_service,
+        "evaluate_eligibility",
+        AsyncMock(return_value=(True, 200, {})),
+    )
+    upload = AsyncMock()
+    save = AsyncMock()
+    monkeypatch.setattr(grace_marks_service, "upload_bytes", upload)
+    monkeypatch.setattr(grace_marks_service, "save_grace_marks_proof", save)
+    calls = []
+
+    async def handle(request):
+        calls.append(request)
+        if failure == "timeout":
+            await asyncio.sleep(60)
+        if failure == "upstream":
+            return httpx.Response(503, text="secret provider details")
+        return httpx.Response(200, text="secret malformed response")
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            app = SimpleNamespace(state=SimpleNamespace(cmm_http_client=client))
+            return await grace_marks_service.upload_proof(app, "22XX1A0501", _upload())
+
+    response = asyncio.run(run())
+    assert response.status_code == expected_status
+    assert _body(response)["code"] == expected_code
+    assert "secret" not in _body(response)["message"]
+    assert len(calls) == 1
+    upload.assert_not_awaited()
+    save.assert_not_awaited()
+
+
 def test_confirmed_cmm_is_uploaded_then_saved(monkeypatch):
     calls = []
 

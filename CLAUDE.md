@@ -65,7 +65,7 @@ Important optional groups:
 
 - API/docs: `API_ACCESS_KEY`, `ENVIRONMENT`
 - S3-compatible development storage: `S3_ENDPOINT_URL`, `S3_PUBLIC_URL_BASE`
-- CMM verification: `GEMINI_API_KEY`, `GEMINI_MODEL`, `CMM_REFERENCE_PATH`
+- CMM verification: `GEMINI_API_KEY`, `GEMINI_MODEL`, `CMM_VERIFICATION_TIMEOUT_SECONDS`
 - Chatbot: `CHATBOT_API_KEY`, `CHATBOT_BASE_URL`, `CHATBOT_MODEL`, and bounded timeout/tool/output settings
 - Android push: `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_PROJECT_ID`, `FCM_RESULTS_TOPIC`
 - iOS push: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY` or `APNS_PRIVATE_KEY_PATH`
