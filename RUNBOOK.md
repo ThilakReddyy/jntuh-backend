@@ -179,9 +179,8 @@ Map the response first:
 
 - 400/413: invalid type, empty file, or file larger than 5 MB.
 - 422: classifier returned `not_cmm` or `uncertain`.
-- 503: Gemini configuration/network is unavailable, or the provider is rate limited.
-- 502: verification provider returned an error/invalid response, or object storage upload failed.
-- 504: verification exceeded its deadline.
+- 503: verification failed, timed out, returned an invalid response, or is unavailable/rate limited. Inspect the JSON `code`.
+- 502: object storage upload failed.
 - 500 after upload: object was stored but proof metadata could not be recorded.
 
 Check `GEMINI_API_KEY`, model availability, S3 credentials/bucket/endpoint, and PostgreSQL. Do not bypass classification or make the bucket public as an incident workaround. A metadata failure after upload may leave an orphaned object; record its exact key and reconcile it deliberately.
@@ -190,7 +189,7 @@ CMM verification uses `GEMINI_MODEL=gemini-decision-1` with the v1beta Decisions
 
 `CMM_VERIFICATION_TIMEOUT_SECONDS` defaults to 8 seconds (bounded to 1–30). This wall-clock deadline covers the provider request and response processing; transport cancellation stops the request on timeout. There are no automatic retries. The deadline applies to verification, not eligibility lookup or S3/database writes after successful verification.
 
-Failures return `status: failure`, a stable `code`, and a safe user-facing `message`: `verification_timeout` (504), `verification_busy` (503), `verification_unavailable` (503), `verification_provider_error` (502), or `verification_invalid_response` (502). Never return raw provider bodies, API keys or document data. Storage must not run after any verification error. Logs record only model, outcome and duration in milliseconds. Confidence thresholds are initial policy and still need calibration against labeled traffic.
+Failures return `status: failure`, a stable `code`, and a safe user-facing `message`: `verification_timeout`, `verification_busy`, `verification_unavailable`, `verification_provider_error`, or `verification_invalid_response`. Verification failures use HTTP 503 so the production gateway preserves the JSON response instead of substituting a 502/504 error page, and the existing web UI offers retry. Never return raw provider bodies, API keys or document data. Storage must not run after any verification error. Logs record only model, outcome and duration in milliseconds. Confidence thresholds are initial policy and still need calibration against labeled traffic.
 
 ## Jobs are stale or empty
 

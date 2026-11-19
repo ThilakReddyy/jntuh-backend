@@ -205,9 +205,9 @@ def test_classifier_failure_is_unavailable_without_storage(monkeypatch, failure)
 @pytest.mark.parametrize(
     "code,status_code",
     [
-        ("verification_timeout", 504),
-        ("verification_provider_error", 502),
-        ("verification_invalid_response", 502),
+        ("verification_timeout", 503),
+        ("verification_provider_error", 503),
+        ("verification_invalid_response", 503),
         ("verification_busy", 503),
         ("verification_unavailable", 503),
     ],
@@ -249,9 +249,9 @@ def test_verification_errors_reach_user_without_storage(monkeypatch, code, statu
 @pytest.mark.parametrize(
     "failure,expected_status,expected_code",
     [
-        ("timeout", 504, "verification_timeout"),
-        ("upstream", 502, "verification_provider_error"),
-        ("malformed", 502, "verification_invalid_response"),
+        ("timeout", 503, "verification_timeout"),
+        ("upstream", 503, "verification_provider_error"),
+        ("malformed", 503, "verification_invalid_response"),
     ],
 )
 def test_real_verifier_failure_uses_shared_client_and_reaches_caller(

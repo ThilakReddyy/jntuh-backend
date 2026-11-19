@@ -146,7 +146,11 @@ class CMMClassifierConfigurationError(RuntimeError):
 
 
 class CMMVerificationError(RuntimeError):
-    """A safe error contract for the caller; never contains raw provider details."""
+    """A safe error contract for the caller; never contains raw provider details.
+
+    Dependency failures use 503 so the gateway preserves the JSON error and the
+    current web client marks the failure as retryable. Codes distinguish causes.
+    """
 
     def __init__(self, code: str, message: str, status_code: int):
         super().__init__(message)
@@ -206,24 +210,21 @@ async def classify_cmm_document(
         raise CMMVerificationError(
             outcome,
             "Document verification timed out. Please try again.",
-            504,
+            503,
         ) from None
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 429:
             outcome = "verification_busy"
             message = "Document verification is busy. Please try again shortly."
-            status_code = 503
         elif exc.response.status_code in (401, 403):
             outcome = "verification_unavailable"
             message = "Document verification is temporarily unavailable. Please try again later."
-            status_code = 503
         else:
             outcome = "verification_provider_error"
             message = (
                 "The document verification service returned an error. Please try again."
             )
-            status_code = 502
-        raise CMMVerificationError(outcome, message, status_code) from None
+        raise CMMVerificationError(outcome, message, 503) from None
     except httpx.RequestError:
         outcome = "verification_unavailable"
         raise CMMVerificationError(
@@ -236,7 +237,7 @@ async def classify_cmm_document(
         raise CMMVerificationError(
             outcome,
             "The document verification service returned an invalid response. Please try again.",
-            502,
+            503,
         ) from None
     finally:
         logger.info(

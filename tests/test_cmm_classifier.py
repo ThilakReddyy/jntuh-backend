@@ -154,8 +154,8 @@ def test_request_sends_only_candidate_and_reuses_client(monkeypatch, mime):
         (401, "verification_unavailable", 503),
         (403, "verification_unavailable", 503),
         (429, "verification_busy", 503),
-        (500, "verification_provider_error", 502),
-        (503, "verification_provider_error", 502),
+        (500, "verification_provider_error", 503),
+        (503, "verification_provider_error", 503),
     ],
 )
 def test_provider_error_is_not_retried_and_is_sanitized(
@@ -205,8 +205,8 @@ def test_provider_failures(monkeypatch, failure):
                 )
             expected = {
                 "connection": ("verification_unavailable", 503),
-                "transport_timeout": ("verification_timeout", 504),
-            }.get(failure, ("verification_invalid_response", 502))
+                "transport_timeout": ("verification_timeout", 503),
+            }.get(failure, ("verification_invalid_response", 503))
             assert (caught.value.code, caught.value.status_code) == expected
             assert "secret" not in str(caught.value)
 
@@ -235,7 +235,7 @@ def test_wall_clock_deadline_cancels_provider_without_retry(monkeypatch):
                 await classifier.classify_cmm_document(
                     b"candidate", "image/jpeg", http_client=client
                 )
-            assert caught.value.status_code == 504
+            assert caught.value.status_code == 503
             assert caught.value.code == "verification_timeout"
             assert perf_counter() - started < 0.5
 

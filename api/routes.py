@@ -261,9 +261,13 @@ def create_routes(app: FastAPI):
         ),
         tags=["Results"],
         responses={
-            502: {"description": "Document verification provider or storage error."},
-            503: {"description": "Document verification unavailable or busy."},
-            504: {"description": "Document verification timed out."},
+            502: {"description": "Object storage upload failed."},
+            503: {
+                "description": (
+                    "Document verification failed, timed out, or is unavailable/busy. "
+                    "The JSON code identifies the cause."
+                )
+            },
         },
     )
     @limiter.limit("5/minute")
